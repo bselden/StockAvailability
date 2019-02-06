@@ -20,19 +20,27 @@ API_spp_list <- paste0(",field_identified_taxonomy_dim$scientific_name|=",
                        '"]')
 
 # IMPORT DATA FROM WEB PAGE ####
-date = Sys.Date()
-
-##### Download both triennial and annual simultaneously #####
 # https://www.nwfsc.noaa.gov/data/api/v1/source/trawl.catch_fact/variables
 # "actual_station_design_dim$area_hectares"
 # https://www.nwfsc.noaa.gov/data/api/v1/source/trawl.operation_haul_fact/variables
 # "area_swept_ha_der" #in Trawl_info
+date = Sys.Date()
+
+##### Download both triennial and annual simultaneously #####
+project_list <- paste0(",project|=",
+                       '["',
+                       "Groundfish%20Slope%20and%20Shelf%20Combination%20Survey",
+                       '"%2C"',
+                       "Groundfish%20Triennial%20Shelf%20Survey",
+                       '"]')
+
 
 DestFile = paste(DataLocation,'Groundfish_',date,'.csv', sep='')
 
 ### Create API string for query
 ApiText = paste0("https://www.nwfsc.noaa.gov/data/api/v1/source/trawl.catch_fact/selection.csv",
                  "?filters=performance=Satisfactory",
+                 project_list,
                  API_spp_list,
                  # ",date_dim$year>=1980,date_dim$year<=2018", #use to limit dates desired
                  "&variables=project,",
@@ -66,6 +74,7 @@ df = data.frame(read.table(DestFile, sep=',', header=TRUE))
 DestFile = paste(DataLocation,'Trawl_info_',date,'.csv', sep='')
 ApiText = paste0("https://www.nwfsc.noaa.gov/data/api/v1/source/trawl.operation_haul_fact/selection.csv",
                  "?filters=performance=Satisfactory",
+                 project_list,
                  "&variables=project,",
                  "trawl_id,",
                  "date_dim$year,",

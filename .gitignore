@@ -4,3 +4,4 @@
 
 #Ignore input data files
 Data/*.csv
+Data/*.RData
