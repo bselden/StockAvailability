@@ -1,0 +1,6 @@
+.Rproj.user
+.Rhistory
+.RData
+
+#Ignore input data files
+Data/*.csv
