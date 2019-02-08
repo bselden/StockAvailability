@@ -80,6 +80,7 @@ cc.lim <- cc[year %in% surv.yrs]
 vast.new.lim <- vast.new[year %in% surv.yrs]
 
 
+
 # =====================================
 # = COG =
 # =====================================
@@ -90,6 +91,10 @@ cog_orig <- cc.lim[,list(cog_N=weighted.mean(N_km, TotalBio)),
 cog_vast_new <- vast.new.lim[,list(cog_N=weighted.mean(N_km, Density)),
                              by=list(year, spp_common)] 
   
+
+
+save(cc.lim, vast.new.lim, cog_orig, cog_vast_new, file="Output/VAST_Troubleshoot.RData")
+
   
 ### Recreate Figure XX in Thorson Pinsky Ward
 png("Figures/Hake_Comparison.png", height=5, width=4, res=300, unit="in")
