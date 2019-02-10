@@ -189,7 +189,7 @@ cog <- dtspling.dist%>%
             cog_E=weighted.mean(E_km, StockBio),
             log_assessBio=log(mean(Value)),
             SSB=mean(Value)) %>%
-  mutate(SSB.thous=SSB/1000)
+  mutate(SSB.thous=SSB/1000) ### SSB in thousand metric tons
 
 cog_p <- ggplot(cog, aes(x=year, y=cog_N, color=spp_common)) + geom_line()
 
@@ -301,6 +301,7 @@ cc_spp_bio_port_rad <- cc_spp_dist_lim %>%
   group_by(spp_common, port, Port_Name, LANDING_YEAR, year)%>%
   summarise(wtd.bio=weighted.mean(StockBio, w=inv.dist),
             sum.bio=sum(StockBio*inv.dist),
+            sum.bio.unwtd=sum(StockBio),
             port.N=round(mean(N_km_port)),
             num.knots=length(unique(knot_num))) %>%
   mutate(thous.wtd.bio=wtd.bio/1000,
@@ -335,10 +336,12 @@ ssb.exp.brks <- c(2500, 5000,10000, 20000, 50000, 100000, 200000, 500000)
 ssb.log.brks <- log(ssb.exp.brks)
 ssb.exp.brks.thous <- round(ssb.exp.brks/1000)
 
-### Transparent gray
+### Transparent gray for MRO polygon
 gray_trans <- rgb(190, 190,190, 127, maxColorValue=255) 
 
-
+### Transparent green for AST polygon
+col2rgb("#008081", alpha=T)
+green_trans <- rgb(0,128,129, 127, maxColorValue=255)
 
 # ==================================
 # = Plot availability to each port by species =
@@ -412,6 +415,33 @@ legend("topleft", xjust=0,
 dev.off()
 
 
+###################### Unweighted sum biomass ######################
+library(data.table)
+png("Figures/unwtd.sumStockBiobySpp_DTSPling_rad200.png", height=8, width=8, units="in", res=300)
+par(mfrow=c(2,2), mar=c(4,4,2,2))
+as.data.table(cc_spp_bio_port_rad)[,j={
+  t.dt <- .SD
+  plot(sum.bio.unwtd ~ year, t.dt, col="white",  
+       main=paste0(unique(spp_common)), ylab="Unweighted Sum Biomass (mt)")
+  for(i in 1:length(port_names_df$Pcid)){
+    sub <- t.dt[port == port_names_df$Pcid[i]]
+    points(sum.bio.unwtd ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
+  }
+  abline(v=2003, col="grey", lty=2)
+}, by=list(spp_common)]
+
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3800,5200))
+points(N_km_port ~ E_km_port, port_locs_utm, pch=rev(port.pch), col=rev(port.col), cex=1.5, lwd=1.5)
+# text(x=port_locs_utm$E_km_port-150,
+#      y=port_locs_utm$N_km_port,
+#      labels=port_locs_utm$Port_Name)
+legend("topleft", xjust=0, 
+       legend=rev(port_names_df$Port_Name), lty=1, pch=rev(port.pch), col=rev(port.col), xpd=T, lwd=1, bty="n")
+dev.off()
+
+
+
+
 ########################## FIGURE 2 ##########################
 ### Will want to make different symbol for whether SSB is projected or measured (eg is date later than stock assessment)
 cog2 <- as.data.table(cog)
@@ -433,6 +463,7 @@ setorder(cog_wll, year)
 
 png("Figures/RegionBioCOG_DTSPling.png", height=5, width=8, units="in", res=300)
 par(mfrow=c(1,2), mar=c(4,4,4,3))
+### log(SSB) is plotted, but labeled as thousand metric tons by changing axis(side=2)
 plot(log_assessBio ~ year,cog2, col="white", ylab="Assessed Spawning Biomass (thousand mt)", yaxt="n")
 axis(side=2, at=ssb.log.brks, labels=ssb.exp.brks.thous, las=1)
 abline(v=2003, col="grey", lty=2)
@@ -511,12 +542,28 @@ compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(1980, 
 ### Density plots of StockBio across latitude in focal years
 dtspling.dist.dt <- as.data.table(dtspling.dist)
 
+### Still need to check math on converting densities back to Stock Biomass (mt) and matching to sumStockBio
+### Here I do so by SB=totalSB*(d$y/totaly)
+### Should be the trapezoid of x2-x1=200km around port
+
+# density approximates probabilty density function
+# with x in km, this is probability density per km
+# probability=Area under curve would be trapezoid x2-x1=200km, y1=dens(x1), y2=dens(x2)
+
+library(weights)
+northings.brks <- seq(3600,5400, by=c(50))
+
+pdf("Figures/sablefish_SB_hist.pdf", height=8, width=8)
+par(mfrow=c(3,3))
 dtspling.dens.SB <- dtspling.dist.dt[,j={
   t.dt <- .SD
   totalSB <- sum(t.dt$StockBio)
-  d <- density(t.dt$N_km, weights=t.dt$StockBio/totalSB)
-  list(N_km=d$x, SB=totalSB*d$y)
+  d <- wtd.hist(x=t.dt$N_km, weight=t.dt$StockBio, breaks=northings.brks, freq=T, 
+                main=paste0(spp_common, " ", year))
+  list(N_km=d$mids, totalSB=totalSB, SB=d$counts)
 }, by=list(spp_common, year)]
+dev.off()
+
 
 
 ### 200km vicinity of port
@@ -532,7 +579,12 @@ plot_SB_N <- function(df, sp, yr){
   abline(v=cog2[spp_common==sp & year==yr]$cog_N, lty=2)
   mro_100N <- subset(port_locs_utm, port=="MRO")$N_km_port+100 #100 km N of MRO
   mro_100S <- subset(port_locs_utm, port=="MRO")$N_km_port-100 # 100 km S of MRO
-  polygon(x=c(mro_100S, mro_100S, mro_100N,mro_100N),y=c(-5,ylim.SB[2],ylim.SB[2], -5), col=gray_trans, border=NA)
+  polygon(x=c(mro_100S, mro_100S, mro_100N,mro_100N),y=c(-5,ylim.SB[2],ylim.SB[2], -5), 
+          col=gray_trans, border=NA)
+  ast_100N <- subset(port_locs_utm, port=="AST")$N_km_port+100 #100 km N of MRO
+  ast_100S <- subset(port_locs_utm, port=="AST")$N_km_port-100 # 100 km S of MRO
+  polygon(x=c(ast_100S, ast_100S, ast_100N,ast_100N),y=c(-5,ylim.SB[2],ylim.SB[2], -5), 
+          col=green_trans, border=NA)
   text(port_locs_utm$N_km_port, rep(ylim.SB[2],4), labels=port_locs_utm$port)
 }
 
