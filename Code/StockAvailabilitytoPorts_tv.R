@@ -8,12 +8,16 @@ port_locs<- read_csv("Data/PacFIN & BEF ports LUT.csv")
 
 
 #############
-### Subset to desired ports (can subset by name or Pcid)
+### Subset to desired ports based on PACFIN port code
 ports_lim <- c("MRO", "BRG", "COS", "AST")
+port_names_touse <- c("Morro Bay", "Fort Bragg", "Coos Bay", "Astoria")
+
+port_names_df <- data.frame(Pcid=ports_lim, Port_Name=port_names_touse)
 
 port_locs_lim <- port_locs %>%
-  filter(Pcid %in% ports_lim)%>%
-  transmute(X=Lon, Y=Lat, Port_Name=Name, port=Pcid, Lon=Lon, Lat=Lat)
+  inner_join(port_names_df, by=c("Pcid"))%>%
+  transmute(X=Lon, Y=Lat, Port_Name=Port_Name, port=Pcid, Lon=Lon, Lat=Lat)
+
 
 
 #############
@@ -26,7 +30,10 @@ port_locs_utm <- rename(convUL(port_locs_lim), E_km_port=X, N_km_port=Y)
 # =============================
 # = VAST Density Output =
 # =============================
-spp.fold <- list.files("Data/VAST_output")
+fname <- "Data/VAST_density"
+#spp.fold <- list.files("Data/VAST_density")
+spp.fold <- list.files(fname)
+
 
 #write.csv(data.table(spp_common=spp.fold), "thorson_spp.csv")
 
@@ -37,13 +44,13 @@ spp.names <- gsub(".csv", "", gsub("Dens_DF_", "", spp.fold))
 yrs <- seq(1977,2017)
 
 ### Get area in each knot from shortspine (in future runs all output will likely have this column)
-knot_locs <- read_csv("Data/Knot_area_km2_shortspine thornyhead.csv")
+knot_locs <- read_csv("Data/VAST_knots/Knot_area_km2_sablefish.csv")
 knot_locs <- knot_locs %>%
   mutate(knot_num=seq(1:length(E_km)))
 
 
 ### knots with 0 area (this effectively removes them from the calculation of TotalBio)
-### Nick says these are outside the footprint, and should be removed
+### Nick says when knots are outside the footprint, they get an area set to 0, and should be removed
 ### Will remove before creating 500 knots in future runs
 knot_locs %>% filter(Area_km2==0)
 
@@ -51,13 +58,14 @@ knot_locs %>% filter(Area_km2==0)
 ### Import VAST data and combine into single df
 for(i in 1:length(spp.fold)){
   print(spp.fold[i])
-  dens.yr.loc <- read_csv(paste0("Data/VAST_output/", spp.fold[i]))
+  dens.yr.loc <- read_csv(paste0(fname, spp.fold[i]))
   spp.name <- spp.names[i]
   
-  ### Merge with knot_area
+  ### Merge with knot_area (only of knots with Area_km2>0)
   dens.yr.loc <- dens.yr.loc %>%
-    inner_join(knot_locs, by=c("E_km", "N_km")) %>%
-    mutate(TotalBio=Area_km2 * Density, 
+    inner_join(knot_locs%>% filter(Area_km2>0), by=c("E_km", "N_km")) %>%
+    mutate(Density_kgkm2 = exp(Density),
+           KnotBio=Area_km2 * Density_kgkm2, 
            spp_common=spp.name,
            year=Year, #to match old code with lowercase year
            LANDING_YEAR=Year) #for later join with PACFIN landings
@@ -85,12 +93,12 @@ cc.lim <- cc %>% filter(Year %in% surv.yrs)
 # =====================================
 region.bio <- cc.lim %>%
   group_by(spp_common, year) %>%
-  summarise(regionBio=sum(TotalBio))
+  summarise(regionBio=sum(KnotBio))
 
 
 cc.lim2 <- cc.lim %>%
   inner_join(region.bio, by=c("spp_common", "year"))%>%
-  mutate(relBio=TotalBio/regionBio)
+  mutate(relBio=KnotBio/regionBio)
 
 
 # =====================================
@@ -155,7 +163,7 @@ ling.overall <- ling %>%
   summarise(Value=sum(Value),
             StdDev=sqrt(sum(StdDev^2)))
 
-
+### SSB file for all species
 dtspling <- bind_rows(dtsp.bio, ling.overall)
 
 
@@ -164,10 +172,9 @@ dtspling <- bind_rows(dtsp.bio, ling.overall)
 # =====================================
 # = Merge with distribution =
 # =====================================
-dtspling.dist <- merge(dtspling, cc.lim2, by=c("year", "spp_common"))
-
 ### Calculate stock biomass in each knot by multiplying relative biomass across space by total SSB from assessment
-dtspling.dist <- dtspling.dist %>%
+dtspling.dist <- dtspling %>%
+  inner_join(cc.lim2, by=c("year", "spp_common")) %>%
   mutate(StockBio=relBio*Value)
 
 
@@ -178,6 +185,7 @@ dtspling.dist <- dtspling.dist %>%
 cog <- dtspling.dist%>%
   group_by(year, spp_common, Projected)%>%
   summarise(cog_N=weighted.mean(N_km, StockBio),
+            cog_E=weighted.mean(E_km, StockBio),
             log_assessBio=log(mean(Value)),
             SSB=mean(Value)) %>%
   mutate(SSB.thous=SSB/1000)
@@ -234,10 +242,10 @@ cc_spp_dist <- dtspling.dist %>%
   mutate(inv.dist= 1/total_dist ) #use inverse distance to weight biomass in calculating stock availability
 
 ### Diagnostics, making sure each species has the right number of observations
-### Each of 5 species has 2000 observations in each year (500 knots * 4 ports)
+### Each species has 1000 observations in each year (250 knots * 4 ports)
 with(cc_spp_dist, table(year, spp_common))
 #length(unique(cc_spp_dist$year)) #23 years
-#23*2000*5
+
 
 # ==================================
 # = Biomass Weighted by Inverse Distance =
@@ -263,9 +271,10 @@ dts.color <- dts.color[c(1:3, 7,9)]
 #dts.pch <- c(0,15,1,16,2,17)
 dts.pch <- c(19,3,15,7,17) #to match ggplot in fig 4
 
-port3 <- c("MRO", "BRG", "COS", "AST") #ordered by lat
+#port3 <- c("MRO", "BRG", "COS", "AST") #ordered by lat
+# use port_names_df instead
 port.col <- c( "gray", "darkorchid4", "black", "#008081")
-port.pch <- c(19,1,3, 7)
+port.pch <- c(19,1,15, 7)
 
 exp.list <- seq(0,4, by=1)
 land.exp.brks <- 10^(exp.list)
@@ -285,7 +294,7 @@ ssb.exp.brks.thous <- round(ssb.exp.brks/1000)
 # ==================================
 # = Plot availability to each port by species =
 # ==================================
-p <- ggplot(cc_spp_bio_port, aes(x=year, y=wtd.bio, color=Pcid))+
+p <- ggplot(cc_spp_bio_port, aes(x=year, y=wtd.bio, color=port))+
   geom_line() + facet_wrap(~spp_common, scales="free_y")
 
 
@@ -306,15 +315,15 @@ states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80
 
 ###################### FIGURE 3 ######################
 library(data.table)
-png("Figures/logStockBiobySpp_DTSPling.png", height=8, width=6, units="in", res=300)
-par(mfrow=c(3,2), mar=c(4,4,2,2))
-as.data.table(cc_spp_bio_port)[port %in% port3,j={
+png("Figures/logStockBiobySpp_DTSPling.png", height=6, width=8, units="in", res=300)
+par(mfrow=c(2,2), mar=c(4,4,2,2))
+as.data.table(cc_spp_bio_port)[,j={
   t.dt <- .SD
   plot(log(wtd.bio) ~ year, t.dt, col="white",  
        main=paste0(unique(spp_common)), ylab="Stock Availability (mt)", yaxt="n")
   axis(side=2, at=bio.log.brks, labels=bio.exp.brks, las=1)
-  for(i in 1:length(port3)){
-    sub <- t.dt[port == port3[i]]
+  for(i in 1:length(port_names_df$Pcid)){
+    sub <- t.dt[port == port_names_df$Pcid[i]]
     points(log(wtd.bio) ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
   }
   abline(h=0, lty=2)
@@ -322,12 +331,12 @@ as.data.table(cc_spp_bio_port)[port %in% port3,j={
 }, by=list(spp_common)]
 
 plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3800,5200))
-# points(Y ~ X, ports_lim[PACFIN_PORT_CODE %in% port.select], col="black", pch=20)
-# text(x=ports_lim[PACFIN_PORT_CODE %in% port.select]$X-150, 
-#      y=ports_lim[PACFIN_PORT_CODE %in% port.select]$Y, 
-#      labels=ports_lim[PACFIN_PORT_CODE %in% port.select]$PACFIN_PORT_CODE)
-# #plot(x=c(0,1), y=c(0,1), col="white", axes=F, xlab="", ylab="")
-legend("topleft", legend=rev(port3), lty=1, pch=rev(port.pch), col=rev(port.col), xpd=T, lwd=1.5, bty="n")
+points(N_km_port ~ E_km_port, port_locs_utm, pch=rev(port.pch), col=rev(port.col), cex=1.5, lwd=1.5)
+# text(x=port_locs_utm$E_km_port-150,
+#      y=port_locs_utm$N_km_port,
+#      labels=port_locs_utm$Port_Name)
+legend("topleft", xjust=0, 
+       legend=rev(port_names_df$Port_Name), lty=1, pch=rev(port.pch), col=rev(port.col), xpd=T, lwd=1, bty="n")
 dev.off()
 
 
@@ -335,8 +344,23 @@ dev.off()
 ### Will want to make different symbol for whether SSB is projected or measured (eg is date later than stock assessment)
 cog2 <- as.data.table(cog)
 
+# prepare UTM coordinates matrix
+proj_utm <- "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=km +no_defs";
+cog_utm <- data.frame(cog_E=cog2$cog_E, cog_N=cog2$cog_N, m=seq(1:length(cog2$cog_N)))
+utmcoor<-SpatialPointsDataFrame(coords=data.frame(cog_Lon=cog_utm$cog_E, cog_Lat=cog_utm$cog_N),
+                                data=cog_utm, proj4string=CRS(proj_utm))
+#utmdata$X and utmdata$Y are corresponding to UTM Easting and Northing, respectively.
+#zone= UTM zone
+# converting
+longlatcoor<-spTransform(utmcoor,CRS("+proj=longlat"))
+longlatcoor.df <- as.data.frame(longlatcoor)
+
+cog_wll <- merge(cog2, longlatcoor.df, by=c("cog_E", "cog_N"))
+setorder(cog_wll, year)
+
+
 png("Figures/RegionBioCOG_DTSPling.png", height=5, width=8, units="in", res=300)
-par(mfrow=c(1,2))
+par(mfrow=c(1,2), mar=c(4,4,4,3))
 plot(log_assessBio ~ year,cog2, col="white", ylab="Assessed Spawning Biomass (thousand mt)", yaxt="n")
 axis(side=2, at=ssb.log.brks, labels=ssb.exp.brks.thous, las=1)
 abline(v=2003, col="grey", lty=2)
@@ -347,15 +371,60 @@ for(i in 1:length(dtspling.spp)){
 
 legend(1980, 14.5, ncol=3, legend=dtspling.spp, pch=dts.pch, col=dts.color, xpd=NA, bty="n")
 
-plot(cog_N ~ year,cog2, col="white", ylab="Center of Gravity (km)", las=1)
+plot(cog_N ~ year,cog_wll, col="white", ylab="Center of Gravity (km Northing)", las=1)
 #out <- matrix(nrow=length(unique(cog2$year)), ncol=length(dtspling.spp))
 abline(v=2003, col="grey", lty=2)
 for(i in 1:length(dtspling.spp)){
-  sub <- cog2[spp_common==dtspling.spp[i]]
+  sub <- cog_wll[spp_common==dtspling.spp[i]]
   points(cog_N ~ year, sub, col=dts.color[i], pch=dts.pch[i], type="o")
   # temp <- smooth.spline(x=sub$year, y=sub$cog_anom)
   # out[,i] <- temp$y
   # points(unique(cog2$year), out[,i], type="l", col=dts.color[i])
 }
+par(new=T)
+plot(cog_Lat ~ year, cog_wll[spp_common=="sablefish"], col=NA, axes=F, xlab=NA, ylab=NA)
+axis(side=4)
+mtext("Latitude", side=4, line=1.75)
 dev.off()
 
+#################
+compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
+  zlims <- c(min(dat_knot[spp_common==spp]$StockBio), max(dat_knot[spp_common==spp]$StockBio))
+  # a <- ggplot(data=dat_knot[spp_common==spp & year==yrs[1]], aes(x=E_km, y=N_km))+ labs(title=paste0(yrs[1], " ", spp))
+  # b <- a + geom_point(aes(color=StockBio)) + 
+  #   scale_color_distiller(palette="Spectral", limits=zlims) + 
+  #   guides(color = "none")+ 
+  #   geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[1]]$cog_N), lty=2)
+  
+  a <- ggplot()+ labs(title=paste0(yrs[1], " ", spp))
+  b <- a + geom_point(data=dat_knot[spp_common==spp & year==yrs[1]], aes(x=E_km, y=N_km, color=StockBio)) + 
+    scale_color_distiller(palette="Spectral", limits=zlims) + 
+    guides(color = "none")+ 
+    geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[1]]$cog_N), lty=2)
+  b2 <- b + geom_point(data=port_locs_utm, aes(x=E_km_port, y=N_km_port))+
+    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=port),hjust=-0.15, vjust=0)
+  
+  c <- ggplot()+ labs(title=paste0(yrs[2], " ", spp))
+  d <- c + geom_point(data=dat_knot[spp_common==spp & year==yrs[2]], aes(x=E_km, y=N_km, color=StockBio)) + 
+    scale_color_distiller(palette="Spectral", limits=zlims) + 
+    guides(color = "none")+ 
+    geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[2]]$cog_N), lty=2)
+  d2 <- d + geom_point(data=port_locs_utm, aes(x=E_km_port, y=N_km_port))+
+    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=port),hjust=-0.15, vjust=0)
+  
+  
+  e <- ggplot()+ labs(title=paste0(yrs[3], " ", spp))
+  f <- e + geom_point(data=dat_knot[spp_common==spp & year==yrs[3]], aes(x=E_km, y=N_km, color=StockBio)) + 
+    scale_color_distiller(palette="Spectral", limits=zlims) + 
+    geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[3]]$cog_N), lty=2)
+  f2 <- f + geom_point(data=port_locs_utm, aes(x=E_km_port, y=N_km_port))+
+    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=port),hjust=-0.15, vjust=0)
+  
+  
+  library(cowplot)
+  figname <- paste0("Figures/StockDistMaps/", spp, "StockBio_map.png")
+  fig <- ggdraw(plot_grid(b2,d2,f2, ncol=3, rel_widths=c(0.7,0.7,1)))
+  ggsave(figname, fig, width=10, height=5, units="in")
+}
+
+compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(1980, 1992, 2013))
