@@ -526,7 +526,8 @@ port_vic <- port_locs_utm %>%
 
 plot_SB_N <- function(df, sp, yr){
   ylim.SB <- c(0,max(df[spp_common==sp]$SB))
-  plot(SB ~ N_km, df[spp_common==sp & year==yr], type="l", main=paste0(sp, " ", yr), ylim=ylim.SB)
+  plot(SB ~ N_km, df[spp_common==sp & year==yr], type="l", 
+       main=paste0(sp, " ", yr), ylab="Stock Biomass (mt)", ylim=ylim.SB)
   points(port_locs_utm$N_km_port, rep(0,4), pch=rev(port.pch), col=rev(port.col))
   abline(v=cog2[spp_common==sp & year==yr]$cog_N, lty=2)
   mro_100N <- subset(port_locs_utm, port=="MRO")$N_km_port+100 #100 km N of MRO
