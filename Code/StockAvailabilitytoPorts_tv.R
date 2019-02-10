@@ -240,25 +240,71 @@ dist_port <- knotN %>%
 #### Merge with biomass data
 cc_spp_dist <- dtspling.dist %>%
   inner_join(dist_port, by=c("knot_num", "E_km", "N_km", "Area_km2"))%>%
-  mutate(inv.dist= 1/total_dist ) #use inverse distance to weight biomass in calculating stock availability
+  mutate(inv.dist= 1/total_dist,
+         SB.inv=StockBio*inv.dist) #use inverse distance to weight biomass in calculating stock availability
 
 ### Diagnostics, making sure each species has the right number of observations
 ### Each species has 1000 observations in each year (250 knots * 4 ports)
 with(cc_spp_dist, table(year, spp_common))
 #length(unique(cc_spp_dist$year)) #23 years
 
+cc_spp_dist %>% 
+  filter(year==2016) %>%
+  ggplot(., aes(x=log(SB.inv))) + geom_histogram( col="black", fill="gray") + facet_wrap(~port)
+
 
 # ==================================
 # = Biomass Weighted by Inverse Distance =
 # ==================================
+### Taking weighted.mean of StockBio weighted by inverse distance is equivalent to 
+### taking sum(StockBio*inv.dist)/sum(inv.dist)
+### is it more relevant to take sum of the quantity StockBio*inv.dist
+### --> the sum matches more with kernel density of StockBiomass as a function of Northings
 cc_spp_bio_port <- cc_spp_dist %>%
   group_by(spp_common, port, Port_Name, LANDING_YEAR, year)%>%
   summarise(wtd.bio=weighted.mean(StockBio, w=inv.dist),
+            sum.bio=sum(StockBio*inv.dist), 
             port.N=round(mean(N_km_port))) %>%
   mutate(thous.wtd.bio=wtd.bio/1000,
+         log.bio=log(wtd.bio)) #not getting the same value as when logging within summation
+## my equation in the paper, we log first (wtd.log.bio)
+### Arguably fishermen would care about absolute StockBiomass not logged, so logging after makes sense for plotting purposes
+### So change equation for availability to remove log (and then say log(Avail) for plotting)
+
+cc_spp_bio_port %>% filter(spp_common=="sablefish" & port=="MRO")
+cc_spp_bio_port %>% filter(spp_common=="sablefish" & port=="AST")
+
+p_sum <- ggplot(cc_spp_bio_port%>%filter(spp_common %in% c("sablefish", "petrale sole")), 
+                aes(x=year, y=sum.bio, color=port))+
+  geom_line() + facet_wrap(~spp_common, scales="free_y")
+
+# ==================================
+# = Biomass Weighted by Inverse Distance within Radius =
+# ==================================
+### Taking weighted.mean of StockBio weighted by inverse distance is equivalent to 
+### taking sum(StockBio*inv.dist)/sum(inv.dist)
+### is it more relevant to take sum of the quantity StockBio*inv.dist
+### --> the sum matches more with kernel density of StockBiomass as a function of Northings
+## my equation in the paper, we log first (wtd.log.bio)
+### Arguably fishermen would care about absolute StockBiomass not logged, so logging after makes sense for plotting purposes
+### So change equation for availability to remove log (and then say log(Avail) for plotting)
+### Or just use raw for Figure 3 (since species specific anyway)
+
+### Logbook data suggests ports don't travel more than 200km to catch these species
+# ### See Figure DistanceWeightedbyCatch_DTSPL.png in FATEavail
+rad <- 200 #limit to knots within radius (km)
+
+cc_spp_dist_lim <- cc_spp_dist %>%
+  filter(total_dist < rad)
+
+cc_spp_bio_port_rad <- cc_spp_dist_lim %>%
+  group_by(spp_common, port, Port_Name, LANDING_YEAR, year)%>%
+  summarise(wtd.bio=weighted.mean(StockBio, w=inv.dist),
+            sum.bio=sum(StockBio*inv.dist),
+            port.N=round(mean(N_km_port)),
+            num.knots=length(unique(knot_num))) %>%
+  mutate(thous.wtd.bio=wtd.bio/1000,
          log.bio=log(wtd.bio))
-
-
 
 
 # =====================================
@@ -289,6 +335,8 @@ ssb.exp.brks <- c(2500, 5000,10000, 20000, 50000, 100000, 200000, 500000)
 ssb.log.brks <- log(ssb.exp.brks)
 ssb.exp.brks.thous <- round(ssb.exp.brks/1000)
 
+### Transparent gray
+gray_trans <- rgb(190, 190,190, 127, maxColorValue=255) 
 
 
 
@@ -316,18 +364,41 @@ states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80
 
 ###################### FIGURE 3 ######################
 library(data.table)
-png("Figures/logStockBiobySpp_DTSPling.png", height=8, width=8, units="in", res=300)
+png("Figures/sumStockBiobySpp_DTSPling.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port)[,j={
   t.dt <- .SD
-  plot(log(wtd.bio) ~ year, t.dt, col="white",  
-       main=paste0(unique(spp_common)), ylab="Stock Availability (mt)", yaxt="n")
-  axis(side=2, at=bio.log.brks, labels=bio.exp.brks, las=1)
+  plot(sum.bio ~ year, t.dt, col="white",  
+       main=paste0(unique(spp_common)), ylab="Stock Availability (mt)")
   for(i in 1:length(port_names_df$Pcid)){
     sub <- t.dt[port == port_names_df$Pcid[i]]
-    points(log(wtd.bio) ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
+    points(sum.bio ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
   }
-  abline(h=0, lty=2)
+  abline(v=2003, col="grey", lty=2)
+}, by=list(spp_common)]
+
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3800,5200))
+points(N_km_port ~ E_km_port, port_locs_utm, pch=rev(port.pch), col=rev(port.col), cex=1.5, lwd=1.5)
+# text(x=port_locs_utm$E_km_port-150,
+#      y=port_locs_utm$N_km_port,
+#      labels=port_locs_utm$Port_Name)
+legend("topleft", xjust=0, 
+       legend=rev(port_names_df$Port_Name), lty=1, pch=rev(port.pch), col=rev(port.col), xpd=T, lwd=1, bty="n")
+dev.off()
+
+
+###################### FIGURE 3 with fixed radius ######################
+library(data.table)
+png("Figures/sumStockBiobySpp_DTSPling_rad200.png", height=8, width=8, units="in", res=300)
+par(mfrow=c(2,2), mar=c(4,4,2,2))
+as.data.table(cc_spp_bio_port_rad)[,j={
+  t.dt <- .SD
+  plot(sum.bio ~ year, t.dt, col="white",  
+       main=paste0(unique(spp_common)), ylab="Stock Availability (mt)")
+  for(i in 1:length(port_names_df$Pcid)){
+    sub <- t.dt[port == port_names_df$Pcid[i]]
+    points(sum.bio ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
+  }
   abline(v=2003, col="grey", lty=2)
 }, by=list(spp_common)]
 
@@ -429,11 +500,53 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
 }
 
 compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(1980, 1992, 2005))
-compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2003, 2004, 2005))
-compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2006, 2007, 2008))
-compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2009, 2010, 2011))
-compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2012, 2013, 2014))
-compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2015, 2016, 2017))
+# compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2003, 2004, 2005))
+# compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2006, 2007, 2008))
+# compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2009, 2010, 2011))
+# compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2012, 2013, 2014))
+# compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2015, 2016, 2017))
 
 
+##########################
+### Density plots of StockBio across latitude in focal years
+dtspling.dist.dt <- as.data.table(dtspling.dist)
 
+dtspling.dens.SB <- dtspling.dist.dt[,j={
+  t.dt <- .SD
+  totalSB <- sum(t.dt$StockBio)
+  d <- density(t.dt$N_km, weights=t.dt$StockBio/totalSB)
+  list(N_km=d$x, SB=totalSB*d$y)
+}, by=list(spp_common, year)]
+
+
+### 200km vicinity of port
+port_vic <- port_locs_utm %>%
+  mutate(port_100N=N_km_port + 100,
+         port_100S=N_km_port - 100)
+
+plot_SB_N <- function(df, sp, yr){
+  ylim.SB <- c(0,max(df[spp_common==sp]$SB))
+  plot(SB ~ N_km, df[spp_common==sp & year==yr], type="l", main=paste0(sp, " ", yr), ylim=ylim.SB)
+  points(port_locs_utm$N_km_port, rep(0,4), pch=rev(port.pch), col=rev(port.col))
+  abline(v=cog2[spp_common==sp & year==yr]$cog_N, lty=2)
+  mro_100N <- subset(port_locs_utm, port=="MRO")$N_km_port+100 #100 km N of MRO
+  mro_100S <- subset(port_locs_utm, port=="MRO")$N_km_port-100 # 100 km S of MRO
+  polygon(x=c(mro_100S, mro_100S, mro_100N,mro_100N),y=c(-5,ylim.SB[2],ylim.SB[2], -5), col=gray_trans, border=NA)
+  text(port_locs_utm$N_km_port, rep(ylim.SB[2],4), labels=port_locs_utm$port)
+}
+
+pdf("Figures/sablefish_kern_ts_0317.pdf", height=8, width=8)
+par(mfrow=c(3,3), mar=c(4,4,2,2))
+yrs.plot <- seq(2003,2017)
+for(i in 1:length(yrs.plot)){
+  plot_SB_N(df=dtspling.dens.SB[year>=2003], "sablefish", yrs.plot[i])
+}
+dev.off()
+
+pdf("Figures/petrale_kern_ts_0317.pdf", height=8, width=8)
+par(mfrow=c(3,3), mar=c(4,4,2,2))
+yrs.plot <- seq(2003,2017)
+for(i in 1:length(yrs.plot)){
+  plot_SB_N(df=dtspling.dens.SB[year>=2003], "petrale sole", yrs.plot[i])
+}
+dev.off()
