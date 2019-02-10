@@ -429,3 +429,11 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
 }
 
 compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(1980, 1992, 2005))
+compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2003, 2004, 2005))
+compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2006, 2007, 2008))
+compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2009, 2010, 2011))
+compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2012, 2013, 2014))
+compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2015, 2016, 2017))
+
+
+
