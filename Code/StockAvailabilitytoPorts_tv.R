@@ -30,8 +30,8 @@ port_locs_utm <- rename(convUL(port_locs_lim), E_km_port=X, N_km_port=Y)
 # =============================
 # = VAST Density Output =
 # =============================
-fname <- "Data/VAST_density"
-#spp.fold <- list.files("Data/VAST_density")
+fname <- "Data/VAST_density/"
+#fname <- "Data/VAST_output_v1/"
 spp.fold <- list.files(fname)
 
 
@@ -44,6 +44,7 @@ spp.names <- gsub(".csv", "", gsub("Dens_DF_", "", spp.fold))
 yrs <- seq(1977,2017)
 
 ### Get area in each knot from shortspine (in future runs all output will likely have this column)
+#knot_locs <- read_csv("Data/VAST_knots_v1/Knot_area_km2_shortspine thornyhead.csv")
 knot_locs <- read_csv("Data/VAST_knots/Knot_area_km2_sablefish.csv")
 knot_locs <- knot_locs %>%
   mutate(knot_num=seq(1:length(E_km)))
@@ -315,7 +316,7 @@ states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80
 
 ###################### FIGURE 3 ######################
 library(data.table)
-png("Figures/logStockBiobySpp_DTSPling.png", height=6, width=8, units="in", res=300)
+png("Figures/logStockBiobySpp_DTSPling.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port)[,j={
   t.dt <- .SD
@@ -422,9 +423,9 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
   
   
   library(cowplot)
-  figname <- paste0("Figures/StockDistMaps/", spp, "StockBio_map.png")
+  figname <- paste0("Figures/StockDistMaps/", spp, paste0(yrs, collapse=""), "StockBio_map.png")
   fig <- ggdraw(plot_grid(b2,d2,f2, ncol=3, rel_widths=c(0.7,0.7,1)))
   ggsave(figname, fig, width=10, height=5, units="in")
 }
 
-compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(1980, 1992, 2013))
+compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(1980, 1992, 2005))
