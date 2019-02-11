@@ -419,16 +419,17 @@ dev.off()
 
 
 ################ Unweighted sum biomass within radius ######################
+### Units thousand metric tons (matches that for the overall stock biomass)
 library(data.table)
 png("Figures/unwtd.sumStockBiobySpp_DTSPling_rad200.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port_rad)[,j={
   t.dt <- .SD
-  plot(sum.bio.unwtd ~ year, t.dt, col="white",  
-       main=paste0(unique(spp_common)), ylab="Biomass (mt) within 200km")
+  plot(sum.bio.unwtd/1000 ~ year, t.dt, col="white",  
+       main=paste0(unique(spp_common)), ylab="Biomass (thousand mt) within 200km")
   for(i in 1:length(port_names_df$Pcid)){
     sub <- t.dt[port == port_names_df$Pcid[i]]
-    points(sum.bio.unwtd ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
+    points(sum.bio.unwtd/1000 ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
   }
   abline(v=2003, col="grey", lty=2)
 }, by=list(spp_common)]
