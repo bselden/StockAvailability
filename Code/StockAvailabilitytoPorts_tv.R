@@ -258,7 +258,7 @@ cc_spp_dist %>%
 # ==================================
 ### Taking weighted.mean of StockBio weighted by inverse distance is equivalent to 
 ### taking sum(StockBio*inv.dist)/sum(inv.dist)
-### is it more relevant to take sum of the quantity StockBio*inv.dist
+### is it more relevant to take sum of the quantity StockBio*inv.dist?
 ### --> the sum matches more with kernel density of StockBiomass as a function of Northings
 cc_spp_bio_port <- cc_spp_dist %>%
   group_by(spp_common, port, Port_Name, LANDING_YEAR, year)%>%
@@ -365,7 +365,37 @@ states.wcoast <- states[states$NAME %in% c("Washington", "California", "Oregon")
 states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=km +no_defs")
 
 
-###################### FIGURE 3 ######################
+###################### Inverse distance weighted mean biomass available to port ######################
+### Interpretation: this is the mean biomass (mt) in each knot weighted by the inverse distance of that knot to port
+### Higher values could arise from higher biomass for the same distance
+### or smaller distance for the same biomass
+library(data.table)
+png("Figures/wtdmean.StockBiobySpp_DTSPling.png", height=8, width=8, units="in", res=300)
+par(mfrow=c(2,2), mar=c(4,4,2,2))
+as.data.table(cc_spp_bio_port)[,j={
+  t.dt <- .SD
+  plot(wtd.bio ~ year, t.dt, col="white",  
+       main=paste0(unique(spp_common)), ylab="Stock Availability (mt)")
+  for(i in 1:length(port_names_df$Pcid)){
+    sub <- t.dt[port == port_names_df$Pcid[i]]
+    points(wtd.bio ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
+  }
+  abline(v=2003, col="grey", lty=2)
+}, by=list(spp_common)]
+
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3800,5200))
+points(N_km_port ~ E_km_port, port_locs_utm, pch=rev(port.pch), col=rev(port.col), cex=1.5, lwd=1.5)
+# text(x=port_locs_utm$E_km_port-150,
+#      y=port_locs_utm$N_km_port,
+#      labels=port_locs_utm$Port_Name)
+legend("topleft", xjust=0, 
+       legend=rev(port_names_df$Port_Name), lty=1, pch=rev(port.pch), col=rev(port.col), xpd=T, lwd=1, bty="n")
+dev.off()
+
+
+
+
+###################### Sum (bio*inverse distance) ######################
 library(data.table)
 png("Figures/sumStockBiobySpp_DTSPling.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))
@@ -390,7 +420,7 @@ legend("topleft", xjust=0,
 dev.off()
 
 
-###################### FIGURE 3 with fixed radius ######################
+###################### Sum bio * inverse distance with fixed radius ######################
 library(data.table)
 png("Figures/sumStockBiobySpp_DTSPling_rad200.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))

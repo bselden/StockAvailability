@@ -1,7 +1,11 @@
 .Rproj.user
 .Rhistory
 .RData
+.DS_Store
 
 #Ignore input data files
 Data/*.csv
 Data/*.RData
+Data/.DS_Store
+
+Figures/.DS_Store
