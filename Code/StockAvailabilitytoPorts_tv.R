@@ -372,7 +372,7 @@ par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port)[,j={
   t.dt <- .SD
   plot(sum.bio ~ year, t.dt, col="white",  
-       main=paste0(unique(spp_common)), ylab="Stock Availability (mt)")
+       main=paste0(unique(spp_common)), ylab="Stock Availability (mt/km)")
   for(i in 1:length(port_names_df$Pcid)){
     sub <- t.dt[port == port_names_df$Pcid[i]]
     points(sum.bio ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
@@ -397,7 +397,7 @@ par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port_rad)[,j={
   t.dt <- .SD
   plot(sum.bio ~ year, t.dt, col="white",  
-       main=paste0(unique(spp_common)), ylab="Stock Availability (mt)")
+       main=paste0(unique(spp_common)), ylab="Stock Availability (mt/km)")
   for(i in 1:length(port_names_df$Pcid)){
     sub <- t.dt[port == port_names_df$Pcid[i]]
     points(sum.bio ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
@@ -405,7 +405,10 @@ as.data.table(cc_spp_bio_port_rad)[,j={
   abline(v=2003, col="grey", lty=2)
 }, by=list(spp_common)]
 
-plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3800,5200))
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3700,5300))
+symbols(x=port_locs_utm$E_km_port, y=port_locs_utm$N_km_port, circles=rep(200,4), inches=F,
+        fg=rev(port.col), add=T)
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3700,5300), add=T, col="white")
 points(N_km_port ~ E_km_port, port_locs_utm, pch=rev(port.pch), col=rev(port.col), cex=1.5, lwd=1.5)
 # text(x=port_locs_utm$E_km_port-150,
 #      y=port_locs_utm$N_km_port,
@@ -415,14 +418,14 @@ legend("topleft", xjust=0,
 dev.off()
 
 
-###################### Unweighted sum biomass ######################
+################ Unweighted sum biomass within radius ######################
 library(data.table)
 png("Figures/unwtd.sumStockBiobySpp_DTSPling_rad200.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port_rad)[,j={
   t.dt <- .SD
   plot(sum.bio.unwtd ~ year, t.dt, col="white",  
-       main=paste0(unique(spp_common)), ylab="Unweighted Sum Biomass (mt)")
+       main=paste0(unique(spp_common)), ylab="Biomass (mt) within 200km")
   for(i in 1:length(port_names_df$Pcid)){
     sub <- t.dt[port == port_names_df$Pcid[i]]
     points(sum.bio.unwtd ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
@@ -430,7 +433,10 @@ as.data.table(cc_spp_bio_port_rad)[,j={
   abline(v=2003, col="grey", lty=2)
 }, by=list(spp_common)]
 
-plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3800,5200))
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3700,5300))
+symbols(x=port_locs_utm$E_km_port, y=port_locs_utm$N_km_port, circles=rep(200,4), inches=F,
+        fg=rev(port.col), add=T)
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3700,5300), add=T, col="white")
 points(N_km_port ~ E_km_port, port_locs_utm, pch=rev(port.pch), col=rev(port.col), cex=1.5, lwd=1.5)
 # text(x=port_locs_utm$E_km_port-150,
 #      y=port_locs_utm$N_km_port,
@@ -500,28 +506,29 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
   #   geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[1]]$cog_N), lty=2)
   
   a <- ggplot()+ labs(title=paste0(yrs[1], " ", spp))
-  b <- a + geom_point(data=dat_knot[spp_common==spp & year==yrs[1]], aes(x=E_km, y=N_km, color=StockBio)) + 
+  b <- a + geom_point(data=dat_knot[spp_common==spp & year==yrs[1]], aes(x=E_km, y=N_km, color=StockBio)) +
+                      xlim(250,1000) + 
     scale_color_distiller(palette="Spectral", limits=zlims) + 
     guides(color = "none")+ 
     geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[1]]$cog_N), lty=2)
   b2 <- b + geom_point(data=port_locs_utm, aes(x=E_km_port, y=N_km_port))+
-    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=port),hjust=-0.15, vjust=0)
+    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=Port_Name),hjust=-0.15, vjust=0)
   
   c <- ggplot()+ labs(title=paste0(yrs[2], " ", spp))
   d <- c + geom_point(data=dat_knot[spp_common==spp & year==yrs[2]], aes(x=E_km, y=N_km, color=StockBio)) + 
-    scale_color_distiller(palette="Spectral", limits=zlims) + 
+    xlim(250,1000) + scale_color_distiller(palette="Spectral", limits=zlims) + 
     guides(color = "none")+ 
     geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[2]]$cog_N), lty=2)
   d2 <- d + geom_point(data=port_locs_utm, aes(x=E_km_port, y=N_km_port))+
-    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=port),hjust=-0.15, vjust=0)
+    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=Port_Name),hjust=-0.15, vjust=0)
   
   
   e <- ggplot()+ labs(title=paste0(yrs[3], " ", spp))
   f <- e + geom_point(data=dat_knot[spp_common==spp & year==yrs[3]], aes(x=E_km, y=N_km, color=StockBio)) + 
-    scale_color_distiller(palette="Spectral", limits=zlims) + 
+    xlim(250,1000) + scale_color_distiller(palette="Spectral", limits=zlims) + 
     geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[3]]$cog_N), lty=2)
   f2 <- f + geom_point(data=port_locs_utm, aes(x=E_km_port, y=N_km_port))+
-    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=port),hjust=-0.15, vjust=0)
+    geom_text(data=port_locs_utm, aes(x=E_km_port, y=N_km_port, label=Port_Name),hjust=-0.15, vjust=0)
   
   
   library(cowplot)
@@ -530,7 +537,7 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
   ggsave(figname, fig, width=10, height=5, units="in")
 }
 
-compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(1980, 1992, 2005))
+compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(1980, 1992, 2013))
 # compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2003, 2004, 2005))
 # compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2006, 2007, 2008))
 # compare.stockBio.map(as.data.table(dtspling.dist),cog_wll, "sablefish", c(2009, 2010, 2011))
@@ -555,12 +562,13 @@ northings.brks <- seq(3600,5400, by=c(50))
 
 pdf("Figures/sablefish_SB_hist.pdf", height=8, width=8)
 par(mfrow=c(3,3))
-dtspling.dens.SB <- dtspling.dist.dt[,j={
+dtspling.dens.SB <- dtspling.dist.dt[spp_common=="sablefish",j={
   t.dt <- .SD
   totalSB <- sum(t.dt$StockBio)
-  d <- wtd.hist(x=t.dt$N_km, weight=t.dt$StockBio, breaks=northings.brks, freq=T, 
+  wtd.hist(x=t.dt$N_km, weight=t.dt$StockBio, breaks=northings.brks, freq=T, 
                 main=paste0(spp_common, " ", year))
-  list(N_km=d$mids, totalSB=totalSB, SB=d$counts)
+  d <- density(x=t.dt$N_km, weights=t.dt$StockBio/totalSB)
+  list(N_km=d$x, totalSB=totalSB, SB=totalSB*d$y)
 }, by=list(spp_common, year)]
 dev.off()
 
@@ -574,7 +582,7 @@ port_vic <- port_locs_utm %>%
 plot_SB_N <- function(df, sp, yr){
   ylim.SB <- c(0,max(df[spp_common==sp]$SB))
   plot(SB ~ N_km, df[spp_common==sp & year==yr], type="l", 
-       main=paste0(sp, " ", yr), ylab="Stock Biomass (mt)", ylim=ylim.SB)
+       main=paste0(sp, " ", yr), ylab="Kernel Density (mt/km Northing)", ylim=ylim.SB)
   points(port_locs_utm$N_km_port, rep(0,4), pch=rev(port.pch), col=rev(port.col))
   abline(v=cog2[spp_common==sp & year==yr]$cog_N, lty=2)
   mro_100N <- subset(port_locs_utm, port=="MRO")$N_km_port+100 #100 km N of MRO
@@ -593,6 +601,15 @@ par(mfrow=c(3,3), mar=c(4,4,2,2))
 yrs.plot <- seq(2003,2017)
 for(i in 1:length(yrs.plot)){
   plot_SB_N(df=dtspling.dens.SB[year>=2003], "sablefish", yrs.plot[i])
+}
+dev.off()
+
+
+pdf("Figures/sablefish_kern_ts_yrslim.pdf", height=8, width=8)
+par(mfrow=c(2,2), mar=c(4,4,2,2))
+yrs.lim <- c(2003, 2006,2010,2013)
+for(i in 1:length(yrs.lim)){
+  plot_SB_N(df=dtspling.dens.SB[year%in%yrs.lim], "sablefish", yrs.lim[i])
 }
 dev.off()
 
