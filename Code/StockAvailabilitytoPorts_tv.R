@@ -1,7 +1,8 @@
 ### Objective calculate stock availability to select ports
 
 library(tidyverse)
-
+library(Hmisc)
+library(sp)
 
 ### Read in port locations
 port_locs<- read_csv("Data/PacFIN & BEF ports LUT.csv")
@@ -30,7 +31,7 @@ port_locs_utm <- rename(convUL(port_locs_lim), E_km_port=X, N_km_port=Y)
 # =============================
 # = VAST Density Output =
 # =============================
-fname <- "Data/VAST_density/"
+fname <- "Data/VAST_density_500/"
 #fname <- "Data/VAST_output_v1/"
 spp.fold <- list.files(fname)
 
@@ -45,7 +46,7 @@ yrs <- seq(1977,2017)
 
 ### Get area in each knot from shortspine (in future runs all output will likely have this column)
 #knot_locs <- read_csv("Data/VAST_knots_v1/Knot_area_km2_shortspine thornyhead.csv")
-knot_locs <- read_csv("Data/VAST_knots/Knot_area_km2_sablefish.csv")
+knot_locs <- read_csv("Data/VAST_knots_500/Knot_area_km2_sablefish.csv")
 knot_locs <- knot_locs %>%
   mutate(knot_num=seq(1:length(E_km)))
 
@@ -397,7 +398,7 @@ dev.off()
 
 ###################### Sum (bio*inverse distance) ######################
 library(data.table)
-png("Figures/sumStockBiobySpp_DTSPling.png", height=8, width=8, units="in", res=300)
+png("Figures/sumStockBiobySpp_DTSPling_500knots.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port)[,j={
   t.dt <- .SD
@@ -422,7 +423,7 @@ dev.off()
 
 ###################### Sum bio * inverse distance with fixed radius ######################
 library(data.table)
-png("Figures/sumStockBiobySpp_DTSPling_rad200.png", height=8, width=8, units="in", res=300)
+png("Figures/sumStockBiobySpp_DTSPling_rad200_500knots.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port_rad)[,j={
   t.dt <- .SD
@@ -451,7 +452,7 @@ dev.off()
 ################ Unweighted sum biomass within radius ######################
 ### Units thousand metric tons (matches that for the overall stock biomass)
 library(data.table)
-png("Figures/unwtd.sumStockBiobySpp_DTSPling_rad200.png", height=8, width=8, units="in", res=300)
+png("Figures/unwtd.sumStockBiobySpp_DTSPling_rad200_500knots.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(2,2), mar=c(4,4,2,2))
 as.data.table(cc_spp_bio_port_rad)[,j={
   t.dt <- .SD
@@ -476,6 +477,33 @@ legend("topleft", xjust=0,
        legend=rev(port_names_df$Port_Name), lty=1, pch=rev(port.pch), col=rev(port.col), xpd=T, lwd=1, bty="n")
 dev.off()
 
+### Only petrale sole and sablefish
+png("Figures/unwtd.sumStockBio_sablepetrale_rad200_500knots.png", height=5, width=8, units="in", res=300)
+par(mfrow=c(1,2), mar=c(4,4,2,2))
+as.data.table(cc_spp_bio_port_rad)[spp_common %in% c("petrale sole"),j={
+  t.dt <- .SD
+  plot(sum.bio.unwtd/1000 ~ year, t.dt, col="white",  
+       main=paste0(unique(spp_common)), ylab="Biomass (thousand mt) within 200km")
+  for(i in 1:length(port_names_df$Pcid)){
+    sub <- t.dt[port == port_names_df$Pcid[i]]
+    points(sum.bio.unwtd/1000 ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
+  }
+  abline(v=2003, col="grey", lty=2)
+}, by=list(spp_common)]
+legend("topleft", xjust=0, 
+       legend=rev(port_names_df$Port_Name), lty=1, pch=rev(port.pch), col=rev(port.col), lwd=1, bty="n")
+
+as.data.table(cc_spp_bio_port_rad)[spp_common %in% c("sablefish"),j={
+  t.dt <- .SD
+  plot(sum.bio.unwtd/1000 ~ year, t.dt, col="white",  
+       main=paste0(unique(spp_common)), ylab="Biomass (thousand mt) within 200km")
+  for(i in 1:length(port_names_df$Pcid)){
+    sub <- t.dt[port == port_names_df$Pcid[i]]
+    points(sum.bio.unwtd/1000 ~ year, sub, type="o", col=port.col[i], pch=port.pch[i], lwd=1)
+  }
+  abline(v=2003, col="grey", lty=2)
+}, by=list(spp_common)]
+dev.off()
 
 
 
@@ -498,7 +526,7 @@ cog_wll <- merge(cog2, longlatcoor.df, by=c("cog_E", "cog_N"))
 setorder(cog_wll, year)
 
 
-png("Figures/RegionBioCOG_DTSPling.png", height=5, width=8, units="in", res=300)
+png("Figures/RegionBioCOG_DTSPling_500knots.png", height=5, width=8, units="in", res=300)
 par(mfrow=c(1,2), mar=c(4,4,4,3))
 ### log(SSB) is plotted, but labeled as thousand metric tons by changing axis(side=2)
 plot(log_assessBio ~ year,cog2, col="white", ylab="Assessed Spawning Biomass (thousand mt)", yaxt="n")
