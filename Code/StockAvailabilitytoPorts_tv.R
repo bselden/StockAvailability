@@ -506,6 +506,20 @@ as.data.table(cc_spp_bio_port_rad)[spp_common %in% c("sablefish"),j={
 dev.off()
 
 
+### Just the map with the radius
+png("Figures/map_wradius.png", height=5, width=5, units="in", res=300)
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3700,5300))
+symbols(x=port_locs_utm$E_km_port, y=port_locs_utm$N_km_port, circles=rep(200,4), inches=F,
+        fg=rev(port.col), add=T)
+plot(states.wcoast.utm, xlim=c(200,600), ylim=c(3700,5300), add=T, col="white")
+points(N_km_port ~ E_km_port, port_locs_utm, pch=rev(port.pch), col=rev(port.col), cex=1.5, lwd=1.5)
+# text(x=port_locs_utm$E_km_port-150,
+#      y=port_locs_utm$N_km_port,
+#      labels=port_locs_utm$Port_Name)
+legend("topleft", xjust=0, 
+       legend=rev(port_names_df$Port_Name), lty=1, pch=rev(port.pch), col=rev(port.col), xpd=T, lwd=1, bty="n")
+dev.off()
+
 
 ########################## FIGURE 2 ##########################
 ### Will want to make different symbol for whether SSB is projected or measured (eg is date later than stock assessment)
