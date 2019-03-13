@@ -8,4 +8,6 @@ Data/*.csv
 Data/*.RData
 Data/.DS_Store
 
+GIS_Data/*
+
 Figures/.DS_Store
