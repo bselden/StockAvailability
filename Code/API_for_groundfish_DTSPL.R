@@ -35,7 +35,7 @@ project_list <- paste0(",project|=",
                        '"]')
 
 
-DestFile = paste(DataLocation,'Groundfish_',date,'.csv', sep='')
+DestFile = paste(DataLocation,'Groundfish_all',date,'.csv', sep='')
 
 ### Create API string for query
 ApiText = paste0("https://www.nwfsc.noaa.gov/data/api/v1/source/trawl.catch_fact/selection.csv",
@@ -71,7 +71,7 @@ download.file(url=ApiText, destfile=DestFile)
 df = data.frame(read.table(DestFile, sep=',', header=TRUE))
 
 #### Download Trawl info #######
-DestFile = paste(DataLocation,'Trawl_info_',date,'.csv', sep='')
+DestFile = paste(DataLocation,'Trawl_info_all',date,'.csv', sep='')
 ApiText = paste0("https://www.nwfsc.noaa.gov/data/api/v1/source/trawl.operation_haul_fact/selection.csv",
                  "?filters=performance=Satisfactory",
                  project_list,
