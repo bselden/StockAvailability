@@ -19,7 +19,7 @@ SPECIES = spp[5]
 print(SPECIES)
 Method = c("Grid", "Mesh", "Spherical_mesh")[2]
 grid_size_km = 25
-n_x = 250   # Specify number of stations (a.k.a. "knots")
+n_x = 500   # Specify number of stations (a.k.a. "knots")
 FieldConfig = c("Omega1"=0, "Epsilon1"=1, "Omega2"=0, "Epsilon2"=1)
 RhoConfig = c("Beta1"=0, "Beta2"=0, "Epsilon1"=2, "Epsilon2"=2) # 2= random walk
 OverdispersionConfig = c("Eta1"=0, "Eta2"=0)
