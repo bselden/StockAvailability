@@ -15,7 +15,7 @@ spp = c("Dover sole", "lingcod","longspine thornyhead",
 #RhoConfig = c("Beta1"=0, "Beta2"=0, "Epsilon1"=2, "Epsilon2"=2)
 #ObsModel = c(1,0)
 
-SPECIES = spp[6]
+SPECIES = spp[5]
 print(SPECIES)
 Method = c("Grid", "Mesh", "Spherical_mesh")[2]
 grid_size_km = 25
@@ -29,9 +29,10 @@ Options =  c("SD_site_density"=FALSE, "SD_site_logdensity"=FALSE, "Calculate_Ran
 # Default
 strata.limits <- data.frame('STRATA'="All_areas")
 
-RootDir = "/Users/Nick.Tolimieri/Documents/VAST_Becca/"
-setwd(RootDir)
-DateFile = paste0(getwd(),'/VAST_output_',SPECIES,'/')
+#RootDir = "/Users/Nick.Tolimieri/Documents/VAST_Becca/"
+#setwd(RootDir)
+RootDir <- paste0(getwd(), "/Data/")
+DateFile = paste0(RootDir,'VAST_output_',SPECIES,'/')
   dir.create(DateFile)
 
 Record = ThorsonUtilities::bundlelist( c("Version",
@@ -53,6 +54,8 @@ capture.output( Record, file=paste0(DateFile,"Record.txt"))
 
 load( paste0(RootDir,"catch_for_vast.RData") ) # vast.catch
 
+vast.catch <- as.data.frame(vast.catch) #Becca needed this for Data_Geostat to work properly
+
 # vast.catch = vast.catch[order(vast.catch$Year, vast.catch$Numerical_calendar_date),]
 # vast.catch = vast.catch[order(vast.catch$Year),]
 
@@ -61,7 +64,7 @@ Data_Geostat = data.frame( "Species"=vast.catch[,'Species'],
                            "Catch_KG"=vast.catch[,'Catch_KG'], 
                            "Year"=vast.catch[,'Year'], 
                            "Vessel"="missing",
-                           "Date" = vast.catch[,"Numerical_calendar_date"],
+                           "Date" = vast.catch[,'Numerical_calendar_date'],
                            "AreaSwept_km2"=vast.catch[,"AreaSwept_km2"], 
                            "Lat"=vast.catch[,'Latitude'], 
                            "Lon"=vast.catch[,'Longitude'], 
