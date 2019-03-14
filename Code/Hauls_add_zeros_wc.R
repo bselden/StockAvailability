@@ -3,10 +3,10 @@ library(tidyverse)
 library(lubridate)
 
 ### Read in catch data
-catch <- read_csv(paste0("Data/", list.files("Data", pattern="Groundfish")))
+catch <- read_csv(paste0("Data/", list.files("Data", pattern="Groundfish_all")))
 
 ### Read in haul data
-haul <- read_csv(paste0("Data/", list.files("Data", pattern="Trawl_info")))
+haul <- read_csv(paste0("Data/", list.files("Data", pattern="Trawl_info_all")))
 
 
 
