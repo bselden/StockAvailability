@@ -104,7 +104,7 @@ Spatial_List = make_spatial_info( grid_size_km=grid_size_km,
 Data_Geostat = cbind( Data_Geostat, "knot_i"=Spatial_List$knot_i )
 
 # Format data
-TmbData = Data_Fn("Version"=Version, 
+TmbData = VAST::make_data("Version"=Version, 
                   "Q_ik"=Q_ik, 
                   "FieldConfig"=FieldConfig, 
                   "OverdispersionConfig"=OverdispersionConfig, 
@@ -123,7 +123,7 @@ TmbData = Data_Fn("Version"=Version,
                   "Method"=Spatial_List$Method,
                   "Options"=Options )
 
-TmbList = Build_TMB_Fn("TmbData"=TmbData, 
+TmbList = VAST::make_model("TmbData"=TmbData, 
                        "RunDir"=DateFile, 
                        "Version"=Version, 
                        "RhoConfig"=RhoConfig, 
