@@ -413,6 +413,11 @@ states.wcoast <- states[states$NAME %in% c("Washington", "California", "Oregon")
 
 states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=km +no_defs")
 
+png("Figures/rcas_map.png", height=5, width=5, units="in", res=300)
+plot(closed_areas, col="orange")
+plot(states.wcoast, add=T)
+points(Lat ~ Lon, knot_locs_LL, cex=0.1)
+dev.off()
 
 ###################### Inverse distance weighted mean biomass available to port ######################
 ### Interpretation: this is the mean biomass (mt) in each knot weighted by the inverse distance of that knot to port
