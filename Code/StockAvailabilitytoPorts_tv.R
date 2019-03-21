@@ -281,7 +281,7 @@ cc_spp_dist <- dtspling.dist %>%
          SB.inv=StockBio*inv.dist) #use inverse distance to weight biomass in calculating stock availability
 
 ### Diagnostics, making sure each species has the right number of observations
-### Each species has 1000 observations in each year (250 knots * 4 ports)
+### Each species should have 2000 observations in each year (500 knots * 4 ports), but only 1988 because 3 knots had 0 area
 with(cc_spp_dist, table(year, spp_common))
 #length(unique(cc_spp_dist$year)) #23 years
 
@@ -336,6 +336,18 @@ cc_spp_dist_lim <- cc_spp_dist %>%
 
 cc_spp_bio_port_rad <- cc_spp_dist_lim %>%
   group_by(spp_common, port, Port_Name, LANDING_YEAR, year)%>%
+  summarise(wtd.bio=weighted.mean(StockBio, w=inv.dist),
+            sum.bio=sum(StockBio*inv.dist),
+            sum.bio.unwtd=sum(StockBio),
+            port.N=round(mean(N_km_port)),
+            num.knots=length(unique(knot_num))) %>%
+  mutate(thous.wtd.bio=wtd.bio/1000,
+         log.bio=log(wtd.bio))
+
+
+### Without closed areas
+cc_spp_bio_port_rad_rca <- cc_spp_dist_lim %>%
+  group_by(spp_common, port, Port_Name, LANDING_YEAR, year, closed)%>%
   summarise(wtd.bio=weighted.mean(StockBio, w=inv.dist),
             sum.bio=sum(StockBio*inv.dist),
             sum.bio.unwtd=sum(StockBio),
