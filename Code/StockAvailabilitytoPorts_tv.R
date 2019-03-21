@@ -3,6 +3,10 @@
 library(tidyverse)
 library(Hmisc)
 library(sp)
+library(rgdal)
+library(raster)
+library(rgeos)
+library(maptools)
 
 ### Read in port locations
 port_locs<- read_csv("Data/PacFIN & BEF ports LUT.csv")
@@ -56,6 +60,12 @@ knot_locs <- knot_locs %>%
 ### Will remove before creating 500 knots in future runs
 knot_locs %>% filter(Area_km2==0)
 
+attr(knot_locs, "projection") <- "UTM"
+attr(knot_locs, "zone") <- 10
+knot_locs$X <- knot_locs$E_km
+knot_locs$Y <- knot_locs$N_km
+knot_locs_LL <- rename(convUL(knot_locs), Lon=X, Lat=Y)
+
 
 ### Import VAST data and combine into single df
 for(i in 1:length(spp.fold)){
@@ -89,6 +99,32 @@ ann.yrs <- seq(2003,2017)
 surv.yrs <- c(tri.yrs, ann.yrs)
 
 cc.lim <- cc %>% filter(Year %in% surv.yrs)
+
+# =====================================
+# = Knots within Closed Areas =
+# =====================================
+cons_areas <- readOGR("GIS_data/efhgroundfish","efh_consarea_polygons")
+
+# efh_700fm <- readOGR("GIS_data/efhgroundfish", "efh_700fm_polygons")
+# 
+closed_areas <- unionSpatialPolygons(cons_areas, IDs=cons_areas@data$PROHIBIT)
+
+plot(closed_areas, col="orange")
+points(Lat ~ Lon, knot_locs_LL, cex=0.1)
+
+coordinates(knot_locs_LL)<- cbind(knot_locs_LL$Lon, knot_locs_LL$Lat)
+proj4string(knot_locs_LL) <- crs(cons_areas)
+
+knot_locs_LL$closed_type <- sp::over(knot_locs_LL, closed_areas)
+knot_locs_LL$closed <- ifelse(is.na(knot_locs_LL$closed_type), 0, 1)
+
+knot_locs_LL_df <- as.data.frame(knot_locs_LL)
+
+plot(Lat ~ Lon, subset(knot_locs_LL_df,closed==0))
+points(Lat ~ Lon, subset(knot_locs_LL_df,closed==1), cex=1.5, col="red")
+
+cc.lim <- cc.lim %>%  
+  inner_join(knot_locs_LL_df, by=c("E_km", "N_km", "knot_num", "Area_km2"))
 
 # =====================================
 # = Distribution of Biomass (kg) across Space =
