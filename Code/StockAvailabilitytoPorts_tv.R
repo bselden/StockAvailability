@@ -32,6 +32,26 @@ attr(port_locs_lim, "projection") <- "LL"
 port_locs_utm <- rename(convUL(port_locs_lim), E_km_port=X, N_km_port=Y)
 
 
+# ===================
+# = State Shapefile =
+# ===================
+library(rgdal)
+library(sp)
+states <- readOGR("GIS_Data/cb_2016_us_state_500k", "cb_2016_us_state_500k")
+states.data <- states@data
+
+proj.states <- proj4string(states)
+
+states.wcoast <- states[states$NAME %in% c("Washington", "California", "Oregon"),]
+
+states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=km +no_defs")
+
+# png("Figures/rcas_map.png", height=5, width=5, units="in", res=300)
+# plot(closed_areas, col="orange")
+# plot(states.wcoast, add=T)
+# points(Lat ~ Lon, knot_locs_LL, cex=0.1)
+# dev.off()
+
 # =============================
 # = VAST Density Output =
 # =============================
@@ -101,30 +121,57 @@ surv.yrs <- c(tri.yrs, ann.yrs)
 cc.lim <- cc %>% filter(Year %in% surv.yrs)
 
 # =====================================
-# = Knots within Closed Areas =
+# = Closed Areas =
 # =====================================
+### 2006 vintage
 cons_areas <- readOGR("GIS_data/efhgroundfish","efh_consarea_polygons")
 
 # efh_700fm <- readOGR("GIS_data/efhgroundfish", "efh_700fm_polygons")
 # 
 closed_areas <- unionSpatialPolygons(cons_areas, IDs=cons_areas@data$PROHIBIT)
 
-plot(closed_areas, col="orange")
-points(Lat ~ Lon, knot_locs_LL, cex=0.1)
 
-coordinates(knot_locs_LL)<- cbind(knot_locs_LL$Lon, knot_locs_LL$Lat)
-proj4string(knot_locs_LL) <- crs(cons_areas)
 
-knot_locs_LL$closed_type <- sp::over(knot_locs_LL, closed_areas)
-knot_locs_LL$closed <- ifelse(is.na(knot_locs_LL$closed_type), 0, 1)
 
-knot_locs_LL_df <- as.data.frame(knot_locs_LL)
+### 2015-2016
+rca1516 <- readOGR("GIS_Data/CommTrawlRCA_2015-16/", "RCA_CommTrawl_2015_16_poly")
 
-plot(Lat ~ Lon, subset(knot_locs_LL_df,closed==0))
-points(Lat ~ Lon, subset(knot_locs_LL_df,closed==1), cex=1.5, col="red")
+rca1516_utm <- spTransform(rca1516, crs(states.wcoast.utm))
+
+
+plot(states.wcoast.utm)
+plot(rca1516_utm,  col="orange")
+points(knot_locs$E_km, knot_locs$N_km, cex=0.1)
+
+# =====================================
+# = Knots within Closed Areas =
+# =====================================
+
+
+coordinates(knot_locs)<- cbind(knot_locs$X, knot_locs$Y)
+proj4string(knot_locs) <- crs(rca1516_utm)
+
+knots_inrca <- sp::over(knot_locs, rca1516_utm)
+knots_inrca$knot_num <- seq(1:500)
+knots_inrca$closed <- ifelse(is.na(knots_inrca$region_id), 0, 1)
+
+knot_locs_df <- as.data.frame(knot_locs)
+knot_locs_df2 <- merge(knot_locs_df, knots_inrca, by=c("knot_num"))
+
+png("Figures/rcas1516_knots.png", height=8, width=8, units="in", res=300)
+plot(states.wcoast.utm)
+plot(rca1516_utm, col="yellow", border=NA, add=T)
+points(N_km ~ E_km, subset(knot_locs_df2,closed==0), cex=0.25, col="blue")
+points(N_km ~ E_km, subset(knot_locs_df2,closed==1), cex=0.5,  col="red")
+dev.off()
+
+
+### Number of knots in closed areas
+sum(knot_locs_df2$closed)
 
 cc.lim <- cc.lim %>%  
-  inner_join(knot_locs_LL_df, by=c("E_km", "N_km", "knot_num", "Area_km2"))
+  inner_join(knot_locs_df2, by=c("E_km", "N_km", "knot_num", "Area_km2"))
+
 
 # =====================================
 # = Distribution of Biomass (kg) across Space =
@@ -399,25 +446,7 @@ p <- ggplot(cc_spp_bio_port, aes(x=year, y=wtd.bio, color=port))+
   geom_line() + facet_wrap(~spp_common, scales="free_y")
 
 
-# ===================
-# = State Shapefile =
-# ===================
-library(rgdal)
-library(sp)
-states <- readOGR("GIS_Data/cb_2016_us_state_500k", "cb_2016_us_state_500k")
-states.data <- states@data
 
-proj.states <- proj4string(states)
-
-states.wcoast <- states[states$NAME %in% c("Washington", "California", "Oregon"),]
-
-states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=km +no_defs")
-
-png("Figures/rcas_map.png", height=5, width=5, units="in", res=300)
-plot(closed_areas, col="orange")
-plot(states.wcoast, add=T)
-points(Lat ~ Lon, knot_locs_LL, cex=0.1)
-dev.off()
 
 ###################### Inverse distance weighted mean biomass available to port ######################
 ### Interpretation: this is the mean biomass (mt) in each knot weighted by the inverse distance of that knot to port
