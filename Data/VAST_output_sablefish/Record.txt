@@ -1,0 +1,33 @@
+$Version
+[1] "VAST_v8_0_0"
+
+$Method
+[1] "Mesh"
+
+$grid_size_km
+[1] 25
+
+$n_x
+[1] 500
+
+$FieldConfig
+  Omega1 Epsilon1   Omega2 Epsilon2 
+       0        1        0        1 
+
+$RhoConfig
+   Beta1    Beta2 Epsilon1 Epsilon2 
+       0        0        2        2 
+
+$OverdispersionConfig
+Eta1 Eta2 
+   0    0 
+
+$ObsModel
+[1] 1 0
+
+$Options
+         SD_site_density       SD_site_logdensity          Calculate_Range 
+                   FALSE                    FALSE                     TRUE 
+Calculate_effective_area 
+                    TRUE 
+

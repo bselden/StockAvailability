@@ -55,7 +55,8 @@ states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80
 # =============================
 # = VAST Density Output =
 # =============================
-fname <- "Data/VAST_density_500/"
+fname <- "Data/VAST_density_1April19/" #all from this date, except sablefish which is 2April2019
+#fname <- "Data/VAST_density_500/"
 #fname <- "Data/VAST_output_v1/"
 spp.fold <- list.files(fname)
 
@@ -70,7 +71,8 @@ yrs <- seq(1977,2017)
 
 ### Get area in each knot from shortspine (in future runs all output will likely have this column)
 #knot_locs <- read_csv("Data/VAST_knots_v1/Knot_area_km2_shortspine thornyhead.csv")
-knot_locs <- read_csv("Data/VAST_knots_500/Knot_area_km2_sablefish.csv")
+knot_locs <- read_csv("Data/VAST_knots_1April19/Knot_area_km2_sablefish.csv")
+#knot_locs <- read_csv("Data/VAST_knots_500/Knot_area_km2_sablefish.csv")
 knot_locs <- knot_locs %>%
   mutate(knot_num=seq(1:length(E_km)))
 
