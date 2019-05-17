@@ -102,7 +102,7 @@ for(i in 1:length(spp.fold)){
   dens.yr.loc <- merge(dens.yr, knots_info, by=c("knot_num"))
   dens.yr.loc$spp_common <- spp.fold[i]
   
-  ### Total bio= bio (kg per km2) * Area per knot (km2); units = kg
+  ### KnotBio= bio (kg per km2) * Area per knot (km2); units = kg
   ### Divide by area per knot to get density
   dens.yr.loc[,"KnotBio":=Density_kgkm2*area_knot]
   
