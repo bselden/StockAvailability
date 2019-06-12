@@ -12,6 +12,10 @@ library(maptools)
 # =============================
 # = Thorson Spatial Knots =
 # =============================
+### NOTE: needed to update to work with new VAST output from Nick Tolimieri 
+### because Jim's original output had Density_kgperkm2
+### and default output from new runs of VAST is log(Density)
+
 spp.fold <- list.files("Data/VAST_output")
 
 spp.list <- vector("list", length(spp.fold))
@@ -33,7 +37,8 @@ for(i in 1:length(spp.fold)){
   dens.yr.loc$spp_common <- spp.names[i]
   
   ### Total bio= bio (kg per km2) * Area per knot (km2); units = kg
-  dens.yr.loc[,"TotalBio":=Area_km2 * Density]
+  dens.yr.loc[,"Density_kgperkm2":=exp(Density)]
+  dens.yr.loc[,"TotalBio":=Area_km2 * Density_kgperkm2]
   
   spp.list[[i]] <- dens.yr.loc
 }
@@ -316,7 +321,7 @@ library(ggplot2)
 compare.relBio.map <- function(dat_knot, dat_cog, spp, yrs){
   zlims <- c(min(dat_knot[spp_common==spp]$relBio), max(dat_knot[spp_common==spp]$relBio))
   a <- ggplot(data=dat_knot[spp_common==spp & year==yrs[1]], aes(x=E_km, y=N_km))+ labs(title=paste0(yrs[1], " ", spp))
-  b <- a + geom_point(aes(color=relBio)) +
+  b <- a + geom_point(aes(color=relBio, size=0.5)) +
     scale_color_distiller(palette="Spectral", limits=zlims) +
     guides(color = "none")+
     geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[1]]$cog_N), lty=2)
@@ -324,14 +329,14 @@ compare.relBio.map <- function(dat_knot, dat_cog, spp, yrs){
 
   
   c <- ggplot(data=dat_knot[spp_common==spp & year==yrs[2]], aes(x=E_km, y=N_km)) + labs(title=paste0(yrs[2], " ", spp))
-  d <- c + geom_point(aes(color=relBio)) + 
+  d <- c + geom_point(aes(color=relBio, size=0.5)) + 
     scale_color_distiller(palette="Spectral", limits=zlims) + 
     guides(color = "none")+ 
     geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[2]]$cog_N), lty=2)
   
   
   e <- ggplot(data=dat_knot[spp_common==spp & year==yrs[3]], aes(x=E_km, y=N_km)) + labs(title=paste0(yrs[3], " ", spp))
-  f <- e + geom_point(aes(color=relBio)) + 
+  f <- e + geom_point(aes(color=relBio, size=0.5)) + 
     scale_color_distiller(palette="Spectral", limits=zlims)+ 
     geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[3]]$cog_N), lty=2)
   

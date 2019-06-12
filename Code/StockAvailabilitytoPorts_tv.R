@@ -89,23 +89,9 @@ knot_locs$Y <- knot_locs$N_km
 knot_locs_LL <- rename(convUL(knot_locs), Lon=X, Lat=Y)
 
 
-### Import VAST data and combine into single df
-for(i in 1:length(spp.fold)){
-  print(spp.fold[i])
-  dens.yr.loc <- read_csv(paste0(fname, spp.fold[i]))
-  spp.name <- spp.names[i]
-  
-  ### Merge with knot_area (only of knots with Area_km2>0)
-  dens.yr.loc <- dens.yr.loc %>%
-    inner_join(knot_locs%>% filter(Area_km2>0), by=c("E_km", "N_km")) %>%
-    mutate(Density_kgkm2 = exp(Density),
-           KnotBio=Area_km2 * Density_kgkm2, 
-           spp_common=spp.name,
-           year=Year, #to match old code with lowercase year
-           LANDING_YEAR=Year) #for later join with PACFIN landings
-
-  spp.list[[i]] <- dens.yr.loc
-}
+### Knot N  or S of 40 degrees 10 minute line
+knot_locs_LL <- knot_locs_LL %>%
+  mutate(knotN4010=ifelse(Lat>40.166666666666664, 1, 0))
 
 
 cc <- bind_rows(spp.list)
@@ -122,58 +108,90 @@ surv.yrs <- c(tri.yrs, ann.yrs)
 
 cc.lim <- cc %>% filter(Year %in% surv.yrs)
 
-# =====================================
-# = Closed Areas =
-# =====================================
-### 2006 vintage
-cons_areas <- readOGR("GIS_data/efhgroundfish","efh_consarea_polygons")
 
-# efh_700fm <- readOGR("GIS_data/efhgroundfish", "efh_700fm_polygons")
+# =====================================
+# = COG Knot Bio =
+# =====================================
+cog_knot <- cc.lim %>%
+  group_by(spp_common, year) %>%
+  summarise(cog_N=weighted.mean(N_km, w=KnotBio),
+            cog_Lat=weighted.mean(Lat, w=KnotBio),
+            cog_N_density=weighted.mean(N_km, w=Density_kgkm2),
+            cog_Lat_density=weighted.mean(Lat, w=Density_kgkm2))
+
+plot(cog_N_density ~ year, subset(cog_knot, spp_common=="Dover sole"), type="o", col="red")
+#points(cog_N ~ Year, cog_tpw, type="o", col="blue") #from original ThorsonPinskyWard
+
+points(cog_N_density ~ year, subset(cog_knot, spp_common=="shortspine thornyhead"), type="o", col="blue")
+
+
+# =====================================
+# = Fraction bio N of 4010 =
+# =====================================
+frac.n <- cc.lim %>%
+  group_by(year, spp_common) %>%
+  summarise(BioN=sum(KnotBio[knotN4010==1]),
+            TotalBio=sum(KnotBio))
+
+frac.n <- frac.n %>%
+  mutate(fracN=BioN/TotalBio)
+
+plot(fracN ~ year, subset(frac.n, spp_common=="sablefish"), type="l")
+
+ggplot(frac.n, aes(x=year, y=fracN, color=spp_common)) + geom_point() + geom_line()
+
+# # =====================================
+# # = Closed Areas =
+# # =====================================
+# ### 2006 vintage
+# cons_areas <- readOGR("GIS_data/efhgroundfish","efh_consarea_polygons")
 # 
-closed_areas <- unionSpatialPolygons(cons_areas, IDs=cons_areas@data$PROHIBIT)
-
-
-
-
-### 2015-2016
-rca1516 <- readOGR("GIS_Data/CommTrawlRCA_2015-16/", "RCA_CommTrawl_2015_16_poly")
-
-rca1516_utm <- spTransform(rca1516, crs(states.wcoast.utm))
-
-
-plot(states.wcoast.utm)
-plot(rca1516_utm,  col="orange")
-points(knot_locs$E_km, knot_locs$N_km, cex=0.1)
-
-# =====================================
-# = Knots within Closed Areas =
-# =====================================
-
-
-coordinates(knot_locs)<- cbind(knot_locs$X, knot_locs$Y)
-proj4string(knot_locs) <- crs(rca1516_utm)
-
-knots_inrca <- sp::over(knot_locs, rca1516_utm)
-knots_inrca$knot_num <- seq(1:500)
-knots_inrca$closed <- ifelse(is.na(knots_inrca$region_id), 0, 1)
-
-knot_locs_df <- as.data.frame(knot_locs)
-knot_locs_df2 <- merge(knot_locs_df, knots_inrca, by=c("knot_num"))
-
-png("Figures/rcas1516_knots.png", height=8, width=8, units="in", res=300)
-plot(states.wcoast.utm)
-plot(rca1516_utm, col="yellow", border=NA, add=T)
-points(N_km ~ E_km, subset(knot_locs_df2,closed==0), cex=0.25, col="blue")
-points(N_km ~ E_km, subset(knot_locs_df2,closed==1), cex=0.5,  col="red")
-dev.off()
-
-
-### Number of knots in closed areas
-sum(knot_locs_df2$closed)
-
-cc.lim <- cc.lim %>%  
-  inner_join(knot_locs_df2, by=c("E_km", "N_km", "knot_num", "Area_km2"))
-
+# # efh_700fm <- readOGR("GIS_data/efhgroundfish", "efh_700fm_polygons")
+# # 
+# closed_areas <- unionSpatialPolygons(cons_areas, IDs=cons_areas@data$PROHIBIT)
+# 
+# 
+# 
+# 
+# ### 2015-2016
+# rca1516 <- readOGR("GIS_Data/CommTrawlRCA_2015-16/", "RCA_CommTrawl_2015_16_poly")
+# 
+# rca1516_utm <- spTransform(rca1516, crs(states.wcoast.utm))
+# 
+# 
+# plot(states.wcoast.utm)
+# plot(rca1516_utm,  col="orange")
+# points(knot_locs$E_km, knot_locs$N_km, cex=0.1)
+# 
+# # =====================================
+# # = Knots within Closed Areas =
+# # =====================================
+# 
+# 
+# coordinates(knot_locs)<- cbind(knot_locs$X, knot_locs$Y)
+# proj4string(knot_locs) <- crs(rca1516_utm)
+# 
+# knots_inrca <- sp::over(knot_locs, rca1516_utm)
+# knots_inrca$knot_num <- seq(1:500)
+# knots_inrca$closed <- ifelse(is.na(knots_inrca$region_id), 0, 1)
+# 
+# knot_locs_df <- as.data.frame(knot_locs)
+# knot_locs_df2 <- merge(knot_locs_df, knots_inrca, by=c("knot_num"))
+# 
+# png("Figures/rcas1516_knots.png", height=8, width=8, units="in", res=300)
+# plot(states.wcoast.utm)
+# plot(rca1516_utm, col="yellow", border=NA, add=T)
+# points(N_km ~ E_km, subset(knot_locs_df2,closed==0), cex=0.25, col="blue")
+# points(N_km ~ E_km, subset(knot_locs_df2,closed==1), cex=0.5,  col="red")
+# dev.off()
+# 
+# 
+# ### Number of knots in closed areas
+# sum(knot_locs_df2$closed)
+# 
+# cc.lim <- cc.lim %>%  
+#   inner_join(knot_locs_df2, by=c("E_km", "N_km", "knot_num", "Area_km2"))
+# 
 
 # =====================================
 # = Distribution of Biomass (kg) across Space =
@@ -273,11 +291,14 @@ cog <- dtspling.dist%>%
   group_by(year, spp_common, Projected)%>%
   summarise(cog_N=weighted.mean(N_km, StockBio),
             cog_E=weighted.mean(E_km, StockBio),
+            cog_Lat=weighted.mean(Lat, StockBio),
             log_assessBio=log(mean(Value)),
             SSB=mean(Value)) %>%
   mutate(SSB.thous=SSB/1000) ### SSB in thousand metric tons
 
 cog_p <- ggplot(cog, aes(x=year, y=cog_N, color=spp_common)) + geom_line()
+
+cog_dover <- ggplot(subset(cog, spp_common=="Dover sole"), aes(x=year, y=cog_N, color=spp_common)) + geom_line()
 
 ### Update these when remaking Fig 2
 # ### Annual mean COG
@@ -292,6 +313,17 @@ cog_p <- ggplot(cog, aes(x=year, y=cog_N, color=spp_common)) + geom_line()
 #                      mad_cog=sum(abs(cog_N-cog_N_overall))/.N,
 #                      max_cog_anom=max(abs(cog_anom))), by=list(spp_common)]
 
+
+### Compare with raw COG
+load("Data/catch_for_vast.RData", verbose=T)
+raw_cog <- vast.catch %>%
+  filter(Species != "longspine thornyhead") %>%
+  group_by(Year, Species)%>%
+  summarise(cog_Lat=weighted.mean(Latitude, Catch_KG))
+
+cog_raw <- ggplot(raw_cog, aes(x=Year, y=cog_Lat, color=Species)) + geom_line()
+
+### NOTE: weighting by log biomass will change the relative COG
 
 # ==================================
 # = Distance between Port and Knot =
