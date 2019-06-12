@@ -446,7 +446,7 @@ logbook_raw <- readRDS("Data/logbook_rawdist.rds")
 
 logbook_quant_yr[,"port":=factor(RPCID, ports_vec)]
 
-png("Figures/FigS1_DistancePort_boxplot.png", height=5, width=7, units="in", res=300)
+png("Figures/FigS2_DistancePort_boxplot.png", height=5, width=7, units="in", res=300)
 ggplot(logbook_quant_yr, aes(x=port, y=q75, fill=port))+geom_boxplot()+
   scale_fill_manual(values=port_col)+
   labs(y="75th quantile of \nDistance from Port (km)\nWeighted by Catch")
@@ -584,3 +584,142 @@ dev.off()
 ### Import PACFIN output
 load("Data/pacfin_output.Rdata", verbose=T)
 #top ports had > 30000 mt of these species and were present 1981-2017
+
+#Summarize landings for species with more than one species code
+dtspl.land2 <- merge(dtspl.land.portlim, dtspl.lookup, 
+                     by=c("PACFIN_SPECIES_CODE"))
+
+
+
+
+
+# Limit to just years in survey and sum across codes for a species
+dtspl.land.yr <- dtspl.land2[!(spp %in% c("longspine thornyhead", "thornyheads")) & LANDING_YEAR %in% surv.yrs,
+                             list(mtons=sum(mtons, na.rm=T),
+                                   dollars=sum(dollars, na.rm=T),
+                                   frac.catch=sum(frac.catch, na.rm=T),
+                                   frac.rev=sum(frac.rev, na.rm=T),
+                                  num.tix=sum(num.tix, na.rm=T),
+                                  num.vess=sum(num.vess, na.rm=T),
+                                  num.dealer=sum(num.dealer, na.rm=T)),
+                             by=list(PACFIN_PORT_CODE, LANDING_YEAR, spp,
+                                     total.tix, total.vess, total.dealer)]
+
+setorder(dtspl.land.yr, PACFIN_PORT_CODE, LANDING_YEAR)
+dtspl.land.yr[mtons==0]
+# AST,  BRK, and COS shortspine thornyhead in 1983 and 1986
+# CRS lingcod in 2011-13 (but fewer than 3 vessels in 2012 and 2013)
+# CRS all species in 2015 (and no trawl vessels)
+# MRO all species in 2010
+
+
+### Limit to years with > 3 total trawl vessels in each port
+dtspl.land.yr.lim <- dtspl.land.yr[total.vess>=3]
+
+
+dtspl.land.yr.lim[,"port":=factor(PACFIN_PORT_CODE, ports_vec)]
+
+### Importance of all DTSPL combined to each port
+dtspl.land.combined <- dtspl.land.yr.lim[,list(frac.catch=sum(frac.catch, na.rm=T)),
+                                         by=list(port, LANDING_YEAR)]
+
+png("Figures/FigS1_DTSPL_dist_import.png", height=5, width=5, units="in", res=300)
+a <- ggplot(logbook_quant_yr, aes(x=port, y=q75, fill=port))+geom_boxplot()+
+  scale_fill_manual(values=port_col)+
+  labs(y="75th quantile of \nDistance from Port (km)\nWeighted by Catch")+
+  theme(legend.position = "none")
+
+b <- ggplot(dtspl.land.combined, aes(x=port, y=frac.catch, fill=port))+
+  geom_boxplot() + 
+  #scale_y_continuous(limits = quantile(dtspl.land.yr.lim$frac.catch, c(0.1,0.9)))+
+  scale_fill_manual(values=port_col)+
+  labs(y="Fraction of Total Catch")+
+  theme(legend.position = "none")
+plot_grid(a, b, nrow=2, align="v")
+dev.off()
+
+
+
+### Merge with availability to port
+### Exclude 1980 because landings records start in 1981 (so first year with both is 1983)
+land_avail <- merge(stock_port[year>1980], dtspl.land.yr.lim,
+                    by.x=c("year", "port", "spp_common"),
+                    by.y=c("LANDING_YEAR", "PACFIN_PORT_CODE", "spp"))
+land_avail[,"StockBio.thous.mtons":=StockBio/1000]
+land_avail[,"land.thous.mtons":=mtons/1000]
+
+mod_land_avail <- land_avail[,j={
+  t.dt <- .SD
+  mod <- lm(land.thous.mtons ~ StockBio.thous.mtons, t.dt)
+  list(StockBio.est=summary(mod)$coefficients[2,1],
+       StockBio.p=summary(mod)$coefficients[2,4],
+       intercept.est=summary(mod)$coefficients[1,1])
+}, by=list(spp_common, port)]
+
+land_avail_wmod <- merge(land_avail, mod_land_avail, by=c("spp_common", "port"))
+land_avail_wmod[,"predicted.land":=intercept.est + StockBio.est*StockBio.thous.mtons]
+
+### By species
+dev.new()
+par(mfrow=c(3,2), mar=c(4,4,2,2))
+for(i in 1:length(dtspling.spp)){
+  plot(land.thous.mtons ~ StockBio.thous.mtons, land_avail_wmod[spp_common==dtspling.spp[i]],
+       main=dtspling.spp[i], col="white", 
+       xlab="Available Stock Biomass (thousand mt)", ylab="Annual Landings (thousand mt)")
+  for(j in 1:length(ports_vec)){
+    sub <- land_avail_wmod[spp_common==dtspling.spp[i] & port==ports_vec[j]]
+    #sub2 <- mod_land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
+    points(land.thous.mtons ~ StockBio.thous.mtons, sub,
+           col=port_col[j], pch=port_pch[j])
+    points(predicted.land ~ StockBio.thous.mtons, sub, type="l", col=port_col[j])
+    #abline(a=sub2$intercept.est, b=sub2$StockBio.est, col=port_col[j])
+  }
+}
+
+
+
+png("Figures/Fig7_landing_avail_port.png", height=8, width=8, units="in", res=300)
+par(mfrow=c(3,3), mar=c(2,2,2,2), oma=c(2,2,4,4))
+for(j in 1:length(ports_vec)){
+  plot(land.thous.mtons ~ StockBio.thous.mtons, 
+       land_avail_wmod[port==ports_vec[j] & spp_common !="Dover sole"], col="white",
+       main=ports_vec[j], 
+       xlab="", 
+       ylab="")
+  for(i in 2:length(dtspling.spp)){
+    sub <- land_avail_wmod[spp_common==dtspling.spp[i] & port==ports_vec[j]]
+    #sub2 <- mod_land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
+    points(land.thous.mtons ~ StockBio.thous.mtons, sub,
+           col=dts.color[i], pch=dts.pch[i])
+    points(predicted.land ~ StockBio.thous.mtons, sub, 
+           type="l", col=dts.color[i], lwd=2)
+    #abline(a=sub2$intercept.est, b=sub2$StockBio.est, col=dts.color[i])
+  }
+}
+
+### Position of legend is relative to last plot axes
+legend(-8.5,2.2, horiz=T, cex=1.25,
+       legend=dtspling.spp[2:5], col=dts.color[2:5], pch=dts.pch[2:5], 
+       bty="n", xpd=NA)
+
+plot(land.thous.mtons ~ StockBio.thous.mtons, 
+     land_avail_wmod[spp_common=="Dover sole"],
+     col="white", xlab="", ylab="", main="Dover sole")
+for(j in 1:length(ports_vec)){
+  sub2 <- land_avail_wmod[spp_common=="Dover sole" & port==ports_vec[j]]
+  #sub2 <- mod_land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
+  points(land.thous.mtons ~ StockBio.thous.mtons, sub2,
+         col=port_col[j], pch=port_pch[j])
+  points(predicted.land ~ StockBio.thous.mtons, sub2, type="l", col=port_col[j])
+  #abline(a=sub2$intercept.est, b=sub2$StockBio.est, col=port_col[j])
+}
+
+
+
+# Position of legend is relative to last plot axes
+legend(200,5, cex=1.25,
+       legend=ports_vec, col=port_col, pch=port_pch, bty="n", xpd=NA)
+
+mtext("Available Stock Biomass (thousand mt)", side=1,line=1,  outer=T)
+mtext("Annual Landings (thousand mt)", side=2, line=0.5, outer=T)
+dev.off()
