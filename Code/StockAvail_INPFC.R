@@ -212,9 +212,24 @@ inpfc_lines <- data.frame(lat=c(36,40.5,43,47.5),
                           lon=rep(-127,4),
                           lon_end=rep(-121,4))
 
-inpfc_text <- data.frame(lat=c(35, 38, 42, 45, 48),
+inpfc_text <- data.table(lat=c(35, 38, 42, 45, 48),
                          lon=rep(-126.5, 5),
                          inpfc=inpfc_code)
+
+inpfc_ll_lines <- data.table(lat=c(36,40.5,43,47.5,36,40.5,43,47.5),
+                              lon=c(rep(-127,4), rep(-121,4)),
+                              type=c(rep("start",4), rep("end", 4)))
+                              
+
+inpfc_ll_lines[,"X":=lon]
+inpfc_ll_lines[,"Y":=lat]
+attr(inpfc_ll_lines, "projection") <- "LL"
+inpfc_utm_lines <- convUL(inpfc_ll_lines)
+
+inpfc_text[,"X":=lon]
+inpfc_text[,"Y":=lat]
+attr(inpfc_text, "projection") <- "LL"
+inpfc_utm_text <- convUL(inpfc_text)
 
 # ===================
 # = Plot map of StockBio=
@@ -305,12 +320,13 @@ dev.off()
 ### Stock Biomass and COG
 
 stock_cog <- dtspling.dist[,list(spawning=mean(Value),
-                                 cog=weighted.mean(Lat, Density_kgkm2)),
+                                 cog=weighted.mean(Lat, Density_kgkm2),
+                                 cog_N=weighted.mean(N_km, Density_kgkm2)),
                            by=list(spp_common, year)]
 stock_cog[,"log_assessBio":=log(spawning)]
 
 png("Figures/Fig1_RegionBioCOG_DTSPling_INPFC.png", height=5, width=8, units="in", res=300)
-par(mfrow=c(1,2))
+par(mfrow=c(1,2), oma=c(0,0,0,3))
 plot(log_assessBio ~ year,stock_cog, col="white", ylab="Assessed Spawning Biomass (thousand mt)", yaxt="n")
 axis(side=2, at=ssb.log.brks, labels=ssb.exp.brks.thous, las=1)
 abline(v=2003, col="grey", lty=2)
@@ -321,7 +337,9 @@ for(i in 1:length(dtspling.spp)){
 
 legend(1980, 14.5, ncol=3, legend=dtspling.spp, pch=dts.pch, col=dts.color, xpd=NA, bty="n")
 
+
 plot(cog ~ year,stock_cog, col="white", ylab="Center of Gravity (Latitude)", las=1)
+polygon(x=c(2013, 2017, 2017, 2013, 2013), y=c(41,41,45,45, 41), col="gray90", border=NA)
 #out <- matrix(nrow=length(unique(cog2$year)), ncol=length(dtspling.spp))
 abline(v=2003, col="grey", lty=2)
 for(i in 1:length(dtspling.spp)){
@@ -331,6 +349,10 @@ for(i in 1:length(dtspling.spp)){
   # out[,i] <- temp$y
   # points(unique(cog2$year), out[,i], type="l", col=dts.color[i])
 }
+par(new = T)
+plot(cog_N ~ year, stock_cog, col=NA, axes=F, xlab=NA, ylab=NA)
+axis(side = 4, las=1)
+mtext(side = 4, line = 3, 'Northings (km)')
 dev.off()
 
 
@@ -537,27 +559,7 @@ rca1516_utm <- spTransform(rca1516, crs(states.wcoast.utm))
 
 
 
-png("Figures/Fig4_port_radii_wRCA.png", height=8, width=6, units="in", res=300)
-plot(states.wcoast.utm)
-#plot(rca1516_utm,  col="orange", add=T, border=NULL)
-points(N_km ~ E_km, subset(knot_locs_df2,closed==0), cex=0.3, col="black", pch=16)
-points(N_km ~ E_km, subset(knot_locs_df2,closed==1), cex=0.3,  col="red", pch=16)
-points(Y  ~ X, ports_rad, pch=port_pch, col=port_col, cex=0.8)
-symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, 
-        add=T, fg=port_col, lwd=2)
-legend("left", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
-legend("bottomleft", legend=c("RCA", "Open"), col=c("red", "black"), pch=16, bty="n")
-dev.off()
 
-png("Figures/Fig4_port_radii_noRCA.png", height=8, width=6, units="in", res=300)
-plot(states.wcoast.utm)
-#plot(rca1516_utm,  col="orange", add=T, border=NULL)
-points(N_km ~ E_km, subset(knot_locs_df2), cex=0.3, col="black", pch=16)
-points(Y  ~ X, ports_rad, pch=port_pch, col=port_col, cex=0.8)
-symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, 
-        add=T, fg=port_col, lwd=2)
-legend("left", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
-dev.off()
 
 # =====================================
 # = Knots within Closed Areas =
@@ -575,6 +577,38 @@ knot_locs_df <- as.data.frame(knot_locs)
 knot_locs_df2 <- merge(knot_locs_df, knots_inrca, by=c("knot_num"))
 
 
+
+png("Figures/Fig4_port_radii_wRCA.png", height=8, width=6, units="in", res=300)
+plot(states.wcoast.utm)
+#plot(rca1516_utm,  col="orange", add=T, border=NULL)
+points(N_km ~ E_km, subset(knot_locs_df2,closed==0), cex=0.3, col="black", pch=16)
+points(N_km ~ E_km, subset(knot_locs_df2,closed==1), cex=0.3,  col="red", pch=16)
+points(Y  ~ X, ports_rad, pch=port_pch, col=port_col, cex=0.8)
+symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, 
+        add=T, fg=port_col, lwd=2)
+legend("left", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
+legend("bottomleft", legend=c("RCA", "Open"), col=c("red", "black"), pch=16, bty="n")
+dev.off()
+
+png("Figures/Fig4_port_radii_noRCA.png", height=8, width=6, units="in", res=300)
+plot(states.wcoast.utm, col=NA)
+segments(x0=inpfc_utm_lines[type=="start"]$X, y0=inpfc_utm_lines[type=="start"]$Y,
+         x1=inpfc_utm_lines[type=="end"]$X, y1=inpfc_utm_lines[type=="end"]$Y)
+text(x=inpfc_utm_text$X-450, y=inpfc_utm_text$Y, labels=inpfc_utm_text$inpfc)
+plot(states.wcoast.utm, add=T)
+#plot(rca1516_utm,  col="orange", add=T, border=NULL)
+points(N_km ~ E_km, subset(knot_locs_df2), cex=0.3, col="black", pch=16)
+points(Y  ~ X, ports_rad, pch=port_pch, col=port_col, cex=0.8)
+
+symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, 
+        add=T, fg=port_col, lwd=2)
+legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
+dev.off()
+
+
+# =====================================
+# = Species Biomass within Closed Areas =
+# =====================================
 
 
 ### Number of knots in closed areas
