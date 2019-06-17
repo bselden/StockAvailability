@@ -356,6 +356,27 @@ mtext(side = 4, line = 3, 'Northings (km)')
 dev.off()
 
 
+# =====================================
+# = Correlation with PDO
+# =====================================
+pdo <- as.data.table(read.table("Data/PDO.latest.txt", skip=28, header=T, nrows=118))
+pdo[,"year":=seq(1900,2017)]
+
+pdo.m <- melt(pdo, id.vars="year", measure.vars=c("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"))
+
+pdo.annual <- pdo.m[,list(pdo=mean(value)), by=list(year)]
+pdo.annual[,"sign":=as.factor(sign(pdo))]
+
+png("Figures/PDO.png", height=5, width=5, units="in", res=300)
+ggplot(pdo.annual[year>=1980], aes(x=year, y=pdo, fill=sign))+geom_col()+
+  scale_fill_manual(values=c("red", "blue"))+theme(legend.position = "none")+
+  labs(y="Pacific Decadal Oscillation")
+dev.off()
+
+# cog_pdo <- merge(stock_cog, pdo.annual, by=c("year"))
+# 
+# plot(cog ~ pdo, cog_pdo[spp_common=="sablefish"])
+
 
 # =====================================
 # = Plot stock biomass spatially
