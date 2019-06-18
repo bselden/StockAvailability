@@ -103,25 +103,49 @@ cc.lim2[,"relBio":=KnotBio/regionBio]
 # = Couple with spawning stock biomass from assessment =
 # =====================================
 ### Units= metric tons of spawning biomass
-dover <- as.data.table(read.csv("Data/AssessmentSPB/Dover_2015_SPB.csv"))
+dover <- as.data.table(read.csv("Data/AssessmentSPB/Dover_2011_SPB.csv"))
 dover[,"spp_common":="Dover sole"]
+dover[,"report":=2011]
+dover[,"Year":=as.numeric(gsub("SPB_", "", LABEL))]
+#remove estimates from 2011 report that are >2013
+dover <- dover[Year<2013]
+
+
+# use spawning biomass estimates from 2015 report to council
+# https://www.pcouncil.org/groundfish/stock-assessments/by-species/dover-sole/
+dover15 <- as.data.table(read.csv("Data/AssessmentSPB/DoverProjections_2015Council.csv"))
+
+dover15[,"LABEL":=paste0("SPB_",Year)]
+dover15[,"Value":=Spawning.biomass]
+dover15[,"StdDev":=NA]
+dover15[,"spp_common":="Dover sole"]
+dover15[,"report":=2015]
+dover15[,c("OFL", "Catch..mt.", "Depletion", "Spawning.biomass"):=NULL]
+
+dover.all <- rbind(dover, dover15)
+dover.all[,"Year":=NULL]
 
 
 
 sable <- as.data.table(read.csv("Data/AssessmentSPB/Sablefish_2015_SPB.csv"))
 sable[,"spp_common":="sablefish"]
+sable[,"report":=2015]
 
 petrale <- as.data.table(read.csv("Data/AssessmentSPB/Petrale_2015_SPB.csv"))
 petrale[,"spp_common":="petrale sole"]
+petrale[,"report":=2015]
 
 short <- as.data.table(read.csv("Data/AssessmentSPB/Shortspine_2013_SPB.csv"))
 short[,"spp_common":="shortspine thornyhead"]
+short[,"report":=2013]
 
 
 
-dtsp.bio <- rbind(dover, sable, petrale, short)
+dtsp.bio <- rbind(dover.all, sable, petrale, short)
 dtsp.bio[,"year":=as.numeric(gsub("SPB_", "", LABEL))]
 dtsp.bio[,"LABEL":=NULL]
+
+
 
 
 
@@ -135,7 +159,8 @@ lingN[,"region":="North"]
 ling <- rbind(lingS, lingN)
 ling[,"year":=as.numeric(gsub("SPB_", "", LABEL))]
 
-ling.overall <- ling[,list(Value=sum(Value), StdDev=sqrt(sum(StdDev^2))), by=list(year, spp_common)]
+ling.overall <- ling[year<=2028,list(Value=sum(Value), StdDev=sqrt(sum(StdDev^2))), by=list(year, spp_common)]
+ling.overall[,"report":=2017]
 
 
 dtspling <- rbind(dtsp.bio, ling.overall)
@@ -704,6 +729,8 @@ dtspl.land.yr.lim[,"port":=factor(PACFIN_PORT_CODE, ports_vec)]
 dtspl.land.combined <- dtspl.land.yr.lim[,list(frac.catch=sum(frac.catch, na.rm=T)),
                                          by=list(port, LANDING_YEAR)]
 
+dtspl.land.combined[,list(med.frac=median(frac.catch)), by=list(port)]
+
 png("Figures/FigS1_DTSPL_dist_import.png", height=5, width=5, units="in", res=300)
 a <- ggplot(logbook_quant_yr, aes(x=port, y=q75, fill=port))+geom_boxplot()+
   scale_fill_manual(values=port_col)+
@@ -714,9 +741,9 @@ b <- ggplot(dtspl.land.combined, aes(x=port, y=frac.catch, fill=port))+
   geom_boxplot() + 
   #scale_y_continuous(limits = quantile(dtspl.land.yr.lim$frac.catch, c(0.1,0.9)))+
   scale_fill_manual(values=port_col)+
-  labs(y="Fraction of Total Catch")+
+  labs(y="Proportion of\nTotal Catch")+
   theme(legend.position = "none")
-plot_grid(a, b, nrow=2, align="v")
+plot_grid(b, a, nrow=2, align="v")
 dev.off()
 
 
