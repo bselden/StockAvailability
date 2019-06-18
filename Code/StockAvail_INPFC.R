@@ -785,23 +785,23 @@ for(i in 1:length(dtspling.spp)){
 }
 
 ### Landings by vessel by species
-png("Figures/Fig6_landing_avail_spp.png", height=8, width=6, units="in", res=300)
+png("Figures/Fig6_landing_avail_spp_tix.png", height=8, width=6, units="in", res=300)
 par(mfrow=c(3,2), mar=c(2,2,2,2), oma=c(2,2,0,0))
 for(i in 1:length(dtspling.spp)){
-  plot(mtons.per.vess ~ StockBio.thous.mtons, land_avail[spp_common==dtspling.spp[i]],
+  plot(mtons.per.tix ~ StockBio.thous.mtons, land_avail[spp_common==dtspling.spp[i]],
        main=dtspling.spp[i], col="white", 
        xlab="", ylab="")
   for(j in 1:length(ports_vec)){
     sub <- land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
     #sub2 <- mod_land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
-    points(mtons.per.vess ~ StockBio.thous.mtons, sub,
+    points(mtons.per.tix ~ StockBio.thous.mtons, sub,
            col=port_col[j], pch=port_pch[j])
     #points(predicted.land ~ StockBio.thous.mtons, sub, type="l", col=port_col[j])
     #abline(a=sub2$intercept.est, b=sub2$StockBio.est, col=port_col[j])
   }
 }
 mtext("Available Stock Biomass (thousand mt)", side=1, outer=T, line=0.5)
-mtext("Landings per vessel (mt)", side=2, outer=T, line=0.5)
+mtext("Landings per ticket (mt)", side=2, outer=T, line=0.5)
 plot(states.wcoast.utm)
 points(Y  ~ X, ports_rad, pch=port_pch, col=port_col)
 symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, add=T, fg=port_col)
