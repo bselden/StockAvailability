@@ -973,6 +973,53 @@ for(i in 1:length(ports_vec)){
 legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n", cex=1.5)
 dev.off()
 
+
+###############################
+### Landings by vessel by species
+### California only
+ca_ports <- c("CRS", "ERK", "BRG", "MRO")
+ca_port_pch <- port_pch[port_locs_only$port %in% ca_ports]
+ca_port_col <- port_col[port_locs_only$port %in% ca_ports]
+png("Figures/CAonly_landing_avail_spp_tix.png", height=8, width=6, units="in", res=300)
+par(mfrow=c(3,2), mar=c(2,2,2,2), oma=c(2,2,0,0))
+for(i in 1:length(dtspling.spp)){
+  plot(mtons.per.tix ~ StockBio.thous.mtons, land_avail[spp_common==dtspling.spp[i] & port %in% ca_ports],
+       main=dtspling.spp[i], col="white", 
+       xlab="", ylab="", las=1)
+  for(j in 1:length(ca_ports)){
+    sub <- land_avail[spp_common==dtspling.spp[i] & port==ca_ports[j]]
+    #sub2 <- mod_land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
+    points(mtons.per.tix ~ StockBio.thous.mtons, sub,
+           col=ca_port_col[j], pch=ca_port_pch[j])
+    #points(predicted.land ~ StockBio.thous.mtons, sub, type="l", col=port_col[j])
+    #abline(a=sub2$intercept.est, b=sub2$StockBio.est, col=port_col[j])
+  }
+}
+mtext("Available Stock Biomass (thousand mt)", side=1, outer=T, line=0.5)
+mtext("Landings per ticket (mt)", side=2, outer=T, line=0.5)
+
+plot(states.wcoast)
+points(Lat  ~ Lon, ports_rad, pch=port_pch, col=port_col, cex=0.8)
+for(i in 1:length(ports_vec)){
+  polygon(circle.port[[i]], col=NA, border=port_col[i], lwd=1)
+}
+legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n", cex=1.5)
+dev.off()
+
+
+### Lingcod only, individual port graphs
+par(mfrow=c(3,3))
+for(j in 1:length(ports_vec)){
+  sub <- land_avail[spp_common=="lingcod" & port==ports_vec[j]]
+  #sub2 <- mod_land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
+  plot(mtons.per.tix ~ StockBio.thous.mtons, sub)
+  #points(predicted.land ~ StockBio.thous.mtons, sub, type="l", col=port_col[j])
+  #abline(a=sub2$intercept.est, b=sub2$StockBio.est, col=port_col[j])
+}
+mtext("Available Stock Biomass (thousand mt)", side=1, outer=T, line=0.5)
+mtext("Landings per ticket (mt)", side=2, outer=T, line=0.5)
+
+
 ################################
 ### Landings by ticket by port
 png("Figures/landing_avail_port.png", height=8, width=8, units="in", res=300)
@@ -1029,3 +1076,70 @@ for(j in 1:length(ports_vec)){
          col=port_col[j], pch=port_pch[j])
   #points(predicted.land ~ StockBio.thous.mtons, sub2, type="l", col=port_col[j])
 }
+
+################################
+### Price Per Pound
+
+### NOAA Commercial Landings statistics by state
+noaa_comm <- as.data.table(read.csv("Data/DTSPL_State_landings.csv"))
+
+
+### Convert numbers with commas to numeric
+noaa_comm[,"Pounds_num":= as.numeric(gsub(",", "", Pounds))]
+noaa_comm[,"Dollars_num":= as.numeric(gsub(",", "", Dollars))]
+noaa_comm[,"Land_kg":=Pounds_num/2.205]
+
+### Price per pound
+noaa_comm[,"Price_per_pound":= Dollars_num/Pounds_num]
+
+### Price per kg
+noaa_comm[,"Price_per_kg":= Dollars_num/Land_kg]
+
+
+spp_lookup <- data.table(AFS.Name=c("LINGCOD", "SABLEFISH", "SOLE, DOVER", "SOLE, PETRALE", "THORNYHEAD, SHORTSPINE"),
+                         spp_common=c("lingcod", "sablefish", "Dover sole", "petrale sole", "shortspine thornyhead"))
+
+
+noaa_comm2 <- merge(noaa_comm, spp_lookup, by="AFS.Name")
+
+
+png("Figures/Price_per_lb_8017.png", height=7, width=7, units="in", res=300)
+par(mfrow=c(2,2), mar=c(4,4,2,2))
+plot(Price_per_pound ~ Year, noaa_comm2[State=="CALIFORNIA"], col=NA, main="California",
+     ylab="Price per Pound ($)", ylim=c(0,4.25))
+for(i in 1:length(dtspling.spp)){
+  points(Price_per_pound ~ Year, noaa_comm2[State=="CALIFORNIA" & spp_common==dtspling.spp[i]],
+         pch=dts.pch[i], col=dts.color[i], type="o")
+}
+legend("topleft", legend=dtspling.spp, pch=dts.pch, col=dts.color, bty="n")
+
+plot(Price_per_pound ~ Year, noaa_comm2[State=="OREGON"], col=NA, main="Oregon", 
+     ylab="Price per Pound ($)", ylim=c(0,4.25))
+for(i in 1:length(dtspling.spp)){
+  points(Price_per_pound ~ Year, noaa_comm2[State=="OREGON" & spp_common==dtspling.spp[i]],
+         pch=dts.pch[i], col=dts.color[i], type="o")
+}
+
+plot(Price_per_pound ~ Year, noaa_comm2[State=="WASHINGTON"], col=NA, main="Washington", 
+     ylab="Price per Pound ($)", ylim=c(0,4.25))
+for(i in 1:length(dtspling.spp)){
+  points(Price_per_pound ~ Year, noaa_comm2[State=="WASHINGTON" & spp_common==dtspling.spp[i]],
+         pch=dts.pch[i], col=dts.color[i], type="o")
+}
+dev.off()
+
+states_noaa <- c("CALIFORNIA", "OREGON", "WASHINGTON")
+states_col<-port_col[c(8,3,1)]
+states_pch<- port_pch[c(8,3,1)]
+png("Figures/Price_per_lb_byspp_8017.png", height=7, width=6, units="in", res=300)
+par(mfrow=c(3,2), mar=c(4,4,2,2))
+for(i in 1:length(dtspling.spp)){
+  plot(Price_per_pound ~ Year, noaa_comm2[spp_common==dtspling.spp[i]], col=NA, main=dtspling.spp[i],
+       ylab="Price per Pound ($)")
+  for(j in 1:length(states_noaa)){
+    points(Price_per_pound ~ Year, noaa_comm2[State==states_noaa[j] & spp_common==dtspling.spp[i]],
+           col=states_col[j], pch=states_pch[j], type="o")
+  }
+  legend("topleft", legend=states_noaa, col=states_col, pch=states_pch, bty="n")
+}
+dev.off()
