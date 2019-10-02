@@ -14,6 +14,11 @@ library(raster)
 library(rasterVis)
 library(latticeExtra)
 library(tidyverse)
+library(geosphere)
+
+
+
+
 
 ### Availability to INPFC regions ###
 ##########################
@@ -225,6 +230,43 @@ states.wcoast <- states[states$NAME %in% c("Washington", "California", "Oregon")
 
 states.wcoast.utm <- spTransform(states.wcoast, "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=km +no_defs")
 
+# ===================
+# = Depth Information =
+# ===================
+### Load bathymetry data
+depth <- raster("GIS_Data/etopo1_CAcurrent.nc")
+plot(depth, zlim=c(-500,0))
+
+
+### query depths of knots
+knot_locs_sp <- SpatialPoints(copy(knot_locs[,c("Lon", "Lat")]))
+proj4string(knot_locs_sp) <- proj4string(depth)
+depth.knot <- raster::extract(depth, knot_locs_sp, sp=T)
+depth.knot.df <- as.data.table(as.data.frame(depth.knot))
+knot_locs_depth <- merge(knot_locs, depth.knot.df, by=c("Lon", "Lat"))
+knot_locs_depth[Altitude < -500]
+# only two knots less than 500 m (both in the south)
+
+plot(states.wcoast)
+contour(depth, add=T, zlim=c(-500,-500), nlevels=1)
+contour(depth, add=T, zlim=c(-1500,-1500), nlevels=1, col="gray")
+
+
+### Depth preferences for our focal species
+raw_trawl <- as.data.table(read.csv("Data/Groundfish_all2019-03-14.csv"))
+
+png("Figures/Depth_pref.png", height=8, width=5, units="in", res=300)
+par(mfrow=c(3,2))
+raw_trawl[project=="Groundfish Slope and Shelf Combination Survey",j={
+  hist(depth_m, main=common_name)
+  abline(v=500)
+  list("hist")
+}, by=common_name]
+dev.off()
+
+# ===================
+# = INPFC Boundaries =
+# ===================
 
 ### INPFC boundaries
 # http://www.pcouncil.org/wp-content/uploads/georock.pdf
@@ -319,11 +361,13 @@ for(i in 1:length(inpfc_code)){
 legend("topright", legend=rev(inpfc_code), col=rev(inpfc.col), pch=rev(inpfc.pch), bty="n")
 dev.off()
 
-png("Figures/Fig2_dtspl_bio_inpfc.png", height=8, width=6, units="in", res=300)
+#####################
+### Figure 4
+png("Figures/Fig4_dtspl_bio_inpfc.png", height=8, width=6, units="in", res=300)
 par(mfrow=c(3,2), mar=c(4,4,2,2))
 for(j in 1:length(dtspling.spp)){
   plot(mean.StockBio ~ year, inpfc.bio[spp_common==dtspling.spp[j]], col="white",
-       main=dtspling.spp[j], ylab="Mean Biomass (mt)")
+       main=dtspling.spp[j], ylab="Mean Biomass (mt)", las=1)
   for(i in 1:length(inpfc_code)){
     points(mean.StockBio ~ year, inpfc.bio[spp_common==dtspling.spp[j] & inpfc==inpfc_code[i]],
            type="o", col=inpfc.col[i], pch=inpfc.pch[i])
@@ -349,8 +393,30 @@ stock_cog <- dtspling.dist[,list(spawning=mean(Value),
                                  cog_N=weighted.mean(N_km, Density_kgkm2)),
                            by=list(spp_common, year)]
 stock_cog[,"log_assessBio":=log(spawning)]
+stock_cog[,"spawn.thou":=spawning/1000]
 
-png("Figures/Fig1_RegionBioCOG_DTSPling_INPFC.png", height=5, width=8, units="in", res=300)
+## Just sable and dover
+png("Figures/COG_sableDover_Packard.png", height=5, width=5, units="in", res=300)
+par(mar=c(4,4,2,2))
+plot(cog ~ year,stock_cog[spp_common=="sablefish"], ylab="Center of Gravity (Latitude)", las=1,
+     col=dts.color[2], pch=dts.pch[2], type="o")
+points(cog ~ year,stock_cog[spp_common=="Dover sole"], ylab="Center of Gravity (Latitude)", 
+       col=dts.color[1], pch=dts.pch[1], type="o")
+#abline(v=1998, lty=2)
+#abline(v=2013, lty=3)
+legend("topleft", legend=c("Dover", "sable"), pch=dts.pch[1:2], col=dts.color[1:2], bty="n")
+dev.off()
+
+png("Figures/COG_sable.png", height=4, width=4, units="in", res=300)
+par(mar=c(4,4,2,2))
+plot(cog ~ year,stock_cog[spp_common=="sablefish"], ylab="Center of Gravity (Latitude)", las=1,
+     col="darkgrey", pch=17, type="o", main="sablefish", lwd=2)
+abline(v=1998, lty=2)
+abline(v=2013, lty=3)
+dev.off()
+
+
+png("Figures/RegionBioCOG_DTSPling_INPFC.png", height=5, width=8, units="in", res=300)
 par(mfrow=c(1,2), oma=c(0,0,0,3))
 plot(log_assessBio ~ year,stock_cog, col="white", ylab="Assessed Spawning Biomass (thousand mt)", yaxt="n")
 axis(side=2, at=ssb.log.brks, labels=ssb.exp.brks.thous, las=1)
@@ -381,6 +447,27 @@ mtext(side = 4, line = 3, 'Northings (km)')
 dev.off()
 
 
+################
+### New Figure 2 separated by each species
+png("Figures/Fig2_COGStock_byspp.png", height=8, width=6, units="in", res=300)
+par(mfrow=c(3,2), mar=c(4,5,2,5.5))
+for(i in 1:length(dtspling.spp)){
+  sub <- stock_cog[spp_common==dtspling.spp[i]]
+  ### Stock Bio
+  plot(spawn.thou  ~ year, sub, col="black", pch=1, type="o",
+       ylab="", main=dtspling.spp[i], las=1)
+  mtext(side=2, line=2.5, "Assessed Spawning Biomass\n(thousand mt)", cex=0.8, col="black")
+  abline(v=2003, col="grey", lty=2)
+  
+  par(new = T)
+  plot(cog ~ year, sub, ylim=c(41.5, 44.5),
+       col="darkgrey", axes=F, xlab=NA, ylab=NA, type="o", lty=1, pch=17)
+  axis(side = 4, col="grey", col.ticks="darkgrey", col.axis="darkgrey", las=1)
+  mtext(side = 4, line = 3, "Center of Gravity (Latitude)", cex=0.8, col="darkgrey")
+  
+}
+dev.off()
+
 # =====================================
 # = Correlation with PDO
 # =====================================
@@ -394,8 +481,8 @@ pdo.annual[,"sign":=as.factor(sign(pdo))]
 
 png("Figures/PDO.png", height=5, width=5, units="in", res=300)
 ggplot(pdo.annual[year>=1980], aes(x=year, y=pdo, fill=sign))+geom_col()+
-  scale_fill_manual(values=c("red", "blue"))+theme(legend.position = "none")+
-  labs(y="Pacific Decadal Oscillation")
+  scale_fill_manual(values=c("blue", "red"))+theme(legend.position = "none")+
+  labs(y="Pacific Decadal Oscillation") + geom_vline(xintercept=1998, lty=2) + geom_vline(xintercept=2013, lty=3)
 dev.off()
 
 # cog_pdo <- merge(stock_cog, pdo.annual, by=c("year"))
@@ -413,6 +500,10 @@ all_states <- map_data("state")
 west_states <- subset(all_states, region %in% c("california", "oregon", "washington"))
 
 ############### FIGURE 4 ####################
+inpfc_utm_lines_cast <- data.table(X_start=inpfc_utm_lines[type=="start"]$X,
+                                   X_end=inpfc_utm_lines[type=="end"]$X,
+                                   Y_start=inpfc_utm_lines[type=="start"]$Y,
+                                   Y_end=inpfc_utm_lines[type=="end"]$Y)
 
 compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
   zlims <- c(min(dat_knot[spp_common==spp]$StockBio), max(dat_knot[spp_common==spp]$StockBio))
@@ -427,13 +518,16 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
   #   labs(title=paste0(yrs[1], " ", spp))
   a <- ggplot()+ labs(title=paste0(yrs[1], " ", spp))
   b <- a + geom_point(data=dat_knot[spp_common==spp & year==yrs[1]], 
-                      aes(x=Lon, y=Lat, color=StockBio), size=0.5) + 
+                      aes(x=Lon, y=Lat, color=StockBio), size=0.4) + 
     scale_color_distiller(palette="Spectral", limits=zlims) + 
-    scale_x_continuous(limits=c(-127,-119))+
+    #scale_x_continuous(limits=c(-127,-119))+
     guides(color = "none")+ 
-    #geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[1]]$cog), lty=2)+
-    geom_segment(data=inpfc_lines, aes(x=lon, xend=lon_end, y=lat, yend=lat_end), lty=1)+
-    geom_text(data=inpfc_text, aes(x=lon, y=lat, label=inpfc))
+    geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[1]]$cog), lty=2)+
+    ylab("Latitude")+ xlab("")+
+    theme(plot.margin = unit(c(0,0,0,0), "inches"))+ 
+    geom_segment(data=inpfc_lines, aes(x=rep(-126,4), xend=lon_end, 
+                                       y=lat, yend=lat_end), lty=1)+
+    geom_text(data=inpfc_text, aes(x=rep(-122,5), y=lat, label=inpfc), size=3.25)
   # b2 <- b + geom_point(data=port_locs[port %in% port3], aes(x=Lon, y=Lat))+
   #   geom_text(data=port_locs[port %in% port3], aes(x=easting, y=northing, label=port),hjust=-0.15, vjust=0)
   #b2 <- b+ geom_polygon(aes(group = group), fill="gray", col="black", size=0.5)
@@ -442,13 +536,16 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
   c <- ggplot() + 
     labs(title=paste0(yrs[2], " ", spp))
   d <- c + geom_point(data=dat_knot[spp_common==spp & year==yrs[2]], 
-                      aes(x=Lon, y=Lat, color=StockBio), size=0.5) + 
+                      aes(x=Lon, y=Lat, color=StockBio), size=0.4) + 
     scale_color_distiller(palette="Spectral", limits=zlims) + 
-    scale_x_continuous(limits=c(-127,-119))+
+    #scale_x_continuous(limits=c(-127,-119))+
     guides(color = "none")+ 
-    #geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[2]]$cog), lty=2)+
-    geom_segment(data=inpfc_lines, aes(x=lon, xend=lon_end, y=lat, yend=lat_end), lty=1)+
-    geom_text(data=inpfc_text, aes(x=lon, y=lat, label=inpfc))
+    geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[2]]$cog), lty=2)+
+    xlab("Longitude") + 
+    theme(plot.margin = unit(c(0,0,0,0), "inches"), axis.title.y=element_blank())+ 
+    geom_segment(data=inpfc_lines, aes(x=rep(-126,4), xend=lon_end, 
+                                       y=lat, yend=lat_end), lty=1)+
+    geom_text(data=inpfc_text, aes(x=rep(-122,5), y=lat, label=inpfc), size=3.25)
   
   #d2 <- d+ geom_polygon(aes(group = group), fill="gray", col="black")
   
@@ -460,12 +557,16 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
   e <- ggplot() +
     labs(title=paste0(yrs[3], " ", spp))
   f <- e + geom_point(data=dat_knot[spp_common==spp & year==yrs[3]], 
-                      aes(x=Lon, y=Lat, color=StockBio), size=0.5) + 
-    scale_color_distiller(palette="Spectral", limits=zlims) + 
-    scale_x_continuous(limits=c(-127,-119))+
-    #geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[3]]$cog), lty=2)+
-    geom_segment(data=inpfc_lines, aes(x=lon, xend=lon_end, y=lat, yend=lat_end), lty=1)+
-    geom_text(data=inpfc_text, aes(x=lon, y=lat, label=inpfc))
+                      aes(x=Lon, y=Lat, color=StockBio), size=0.4) + 
+    scale_color_distiller(palette="Spectral", limits=zlims, name="Biomass\n(mt)") + 
+    
+    #scale_x_continuous(limits=c(-127,-119))+
+    xlab("")+ 
+    geom_hline(aes(yintercept=dat_cog[spp_common==spp & year==yrs[3]]$cog), lty=2)+
+    theme(plot.margin = unit(c(0,0,0,0), "inches"), axis.title.y=element_blank())+ 
+    geom_segment(data=inpfc_lines, aes(x=rep(-126,4), xend=lon_end, 
+                                       y=lat, yend=lat_end), lty=1)+
+    geom_text(data=inpfc_text, aes(x=rep(-122,5), y=lat, label=inpfc), size=3.25)
   
   # f2 <- f + geom_point(data=port_locs[port %in% port3], aes(x=easting, y=northing))+
   #   geom_text(data=port_locs[port %in% port3], aes(x=easting, y=northing, label=port),hjust=-0.15, vjust=0)
@@ -474,8 +575,8 @@ compare.stockBio.map <- function(dat_knot, dat_cog, spp, yrs){
   
   library(cowplot)
   figname <- paste0("Figures/StockDistMaps/", spp, "StockBio_map.png")
-  fig <- ggdraw(plot_grid(b,d,f, ncol=3, rel_widths=c(0.7,0.7,1)))
-  ggsave(figname, fig, width=10, height=5, units="in")
+  fig <- ggdraw(plot_grid(b,d,f, ncol=3, rel_widths=c(0.8,0.7,1.1), align="h"))
+  ggsave(figname, fig, width=8, height=4, units="in")
 }
 
 ### Figure 3
@@ -517,8 +618,12 @@ port_pch <- c(7, 10, 16, 17, 15, 18, 19, 5)
 ports_rad <- merge(ports_utm, logbook_quant, by.x="Pcid", by.y="RPCID")
 setorder(ports_rad, -Lat)
 
-
-
+# Polygons for individual port radii
+circle.port <- vector("list", length(ports_vec))
+for (i in 1:length(ports_vec)){
+  sub <- ports_rad[Pcid==ports_vec[i]]
+  circle.port[[i]] <- destPoint(cbind(sub$Lon, sub$Lat), b=1:365, d=sub$q75*1000)
+}
 
 
 
@@ -574,25 +679,53 @@ stock_port <- dtspling.dist.port[,list(StockBio=sum(StockBio)),
                                  by=list(port, year, spp_common)]
 
 
-
+#######################
+### Figure 5
 ### By species
 png("Figures/Fig5_port_bio.png", height=8, width=6, units="in", res=300)
 par(mfrow=c(3,2), mar=c(4,4,2,2))
 for(i in 1:length(dtspling.spp)){
   plot(StockBio/1000 ~ year,stock_port[spp_common==dtspling.spp[i]], col="white",
-       main=dtspling.spp[i], ylab="Available Biomass (thousand mt)")
+       main=dtspling.spp[i], ylab="Available Biomass (thousand mt)", las=1)
   for(j in 1:length(ports_vec)){
     points(StockBio/1000 ~ year, stock_port[port==ports_vec[j] & spp_common==dtspling.spp[i]],
            type="o", col=port_col[j], pch=port_pch[j])
   }
 }
 
-plot(states.wcoast.utm)
-points(Y  ~ X, ports_rad, pch=port_pch, col=port_col)
-symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, add=T, fg=port_col)
+# plot(states.wcoast.utm)
+# points(Y  ~ X, ports_rad, pch=port_pch, col=port_col)
+# symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, add=T, fg=port_col)
+plot(states.wcoast)
+points(Lat  ~ Lon, ports_rad, pch=port_pch, col=port_col, cex=0.8)
+for(i in 1:length(ports_vec)){
+  polygon(circle.port[[i]], col=NA, border=port_col[i], lwd=1)
+}
 legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n", cex=1.5)
 dev.off()
 
+
+### Figure for Packard Proposal; only sable and dover
+### By species
+spp_packard <- c("lingcod", "sablefish")
+png("Figures/lingdover_port_bio.png", height=3, width=8, units="in", res=300)
+par(mfrow=c(1,3), mar=c(4,4,2,2))
+for(i in 1:length(spp_packard)){
+  plot(StockBio/1000 ~ year,stock_port[spp_common==spp_packard[i]], col="white",
+       main=spp_packard[i], ylab="Available Biomass (thousand mt)", las=1)
+  for(j in 1:length(ports_vec)){
+    points(StockBio/1000 ~ year, stock_port[port==ports_vec[j] & spp_common==spp_packard[i]],
+           type="o", col=port_col[j], pch=port_pch[j])
+  }
+}
+
+plot(states.wcoast)
+points(Lat  ~ Lon, ports_rad, pch=port_pch, col=port_col, cex=0.8)
+for(i in 1:length(ports_vec)){
+  polygon(circle.port[[i]], col=NA, border=port_col[i], lwd=1)
+}
+legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n", cex=1.5)
+dev.off()
 
 
 ###############################################
@@ -624,7 +757,7 @@ knot_locs_df2 <- merge(knot_locs_df, knots_inrca, by=c("knot_num"))
 
 
 
-png("Figures/Fig4_port_radii_wRCA.png", height=8, width=6, units="in", res=300)
+png("Figures/port_radii_wRCA.png", height=8, width=6, units="in", res=300)
 plot(states.wcoast.utm)
 #plot(rca1516_utm,  col="orange", add=T, border=NULL)
 points(N_km ~ E_km, subset(knot_locs_df2,closed==0), cex=0.3, col="black", pch=16)
@@ -636,18 +769,45 @@ legend("left", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
 legend("bottomleft", legend=c("RCA", "Open"), col=c("red", "black"), pch=16, bty="n")
 dev.off()
 
-png("Figures/Fig4_port_radii_noRCA.png", height=8, width=6, units="in", res=300)
-plot(states.wcoast.utm, col=NA)
-segments(x0=inpfc_utm_lines[type=="start"]$X, y0=inpfc_utm_lines[type=="start"]$Y,
-         x1=inpfc_utm_lines[type=="end"]$X, y1=inpfc_utm_lines[type=="end"]$Y)
-text(x=inpfc_utm_text$X-450, y=inpfc_utm_text$Y, labels=inpfc_utm_text$inpfc)
-plot(states.wcoast.utm, add=T)
-#plot(rca1516_utm,  col="orange", add=T, border=NULL)
-points(N_km ~ E_km, subset(knot_locs_df2), cex=0.3, col="black", pch=16)
-points(Y  ~ X, ports_rad, pch=port_pch, col=port_col, cex=0.8)
 
-symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, 
-        add=T, fg=port_col, lwd=2)
+#####################
+### Figure 1
+png("Figures/Fig1_port_radii_noRCA_lat.png", height=8, width=6, units="in", res=300)
+plot(states.wcoast, col=NA)
+segments(x0=inpfc_lines$lon, y0=inpfc_lines$lat,
+         x1=inpfc_lines$lon_end, y1=inpfc_lines$lat_end)
+plot(states.wcoast, add=T)
+contour(depth, zlim=c(-500,-500), nlevels=1, add=T, drawlabels=F)
+#contour(depth, zlim=c(-1500,-1500), nlevels=1, add=T, drawlabels=F, col="gray")
+text(x=inpfc_text$lon, y=inpfc_text$lat, labels=inpfc_text$inpfc)
+
+#plot(rca1516_utm,  col="orange", add=T, border=NULL)
+points(Lat ~ Lon, subset(knot_locs_depth[Area_km2>0]), cex=0.3, col="black", pch=16) #subset to sites included in domain
+points(Lat  ~ Lon, ports_rad, pch=port_pch, col=port_col, cex=0.8)
+for(i in 1:length(ports_vec)){
+  polygon(circle.port[[i]], col=NA, border=port_col[i], lwd=2)
+}
+# symbols(x=ports_rad$Lon, y=ports_rad$Lat, circles=ports_rad$q75.degree, inches=F, 
+#         add=T, fg=port_col, lwd=2)
+axis(side=2, las=1, at=seq(34,48, by=2), line=-0.5)
+mtext(side=2, "Latitude", line=3)
+axis(side=1)
+mtext(side=1, "Longitude", line=3)
+# par(new=T)
+# plot(states.wcoast, col=NA, border=NA)
+# axis(side=2, at=c(32,36,40,44,48), line=-2, las=1)
+#mtext(side=2, line=0, "Latitude")
+legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
+dev.off()
+
+png("Figures/inpfc_wport.png", height=5, width=4, units="in", res=300)
+plot(states.wcoast, col=NA)
+segments(x0=inpfc_lines$lon, y0=inpfc_lines$lat,
+         x1=inpfc_lines$lon_end, y1=inpfc_lines$lat_end)
+text(x=inpfc_text$lon, y=inpfc_text$lat, labels=inpfc_text$inpfc)
+plot(states.wcoast, add=T)
+#plot(rca1516_utm,  col="orange", add=T, border=NULL)
+points(Lat  ~ Lon, ports_rad, pch=port_pch, col=port_col)
 legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
 dev.off()
 
@@ -784,13 +944,15 @@ for(i in 1:length(dtspling.spp)){
   }
 }
 
+###############################
+### Figure 6
 ### Landings by vessel by species
 png("Figures/Fig6_landing_avail_spp_tix.png", height=8, width=6, units="in", res=300)
 par(mfrow=c(3,2), mar=c(2,2,2,2), oma=c(2,2,0,0))
 for(i in 1:length(dtspling.spp)){
   plot(mtons.per.tix ~ StockBio.thous.mtons, land_avail[spp_common==dtspling.spp[i]],
        main=dtspling.spp[i], col="white", 
-       xlab="", ylab="")
+       xlab="", ylab="", las=1)
   for(j in 1:length(ports_vec)){
     sub <- land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
     #sub2 <- mod_land_avail[spp_common==dtspling.spp[i] & port==ports_vec[j]]
@@ -802,12 +964,16 @@ for(i in 1:length(dtspling.spp)){
 }
 mtext("Available Stock Biomass (thousand mt)", side=1, outer=T, line=0.5)
 mtext("Landings per ticket (mt)", side=2, outer=T, line=0.5)
-plot(states.wcoast.utm)
-points(Y  ~ X, ports_rad, pch=port_pch, col=port_col)
-symbols(x=ports_rad$X, y=ports_rad$Y, circles=ports_rad$q75, inches=F, add=T, fg=port_col)
+
+plot(states.wcoast)
+points(Lat  ~ Lon, ports_rad, pch=port_pch, col=port_col, cex=0.8)
+for(i in 1:length(ports_vec)){
+  polygon(circle.port[[i]], col=NA, border=port_col[i], lwd=1)
+}
 legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n", cex=1.5)
 dev.off()
 
+################################
 ### Landings by ticket by port
 png("Figures/landing_avail_port.png", height=8, width=8, units="in", res=300)
 par(mfrow=c(3,3), mar=c(2,2,2,2), oma=c(2,2,4,4))
