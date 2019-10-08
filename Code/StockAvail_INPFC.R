@@ -707,9 +707,10 @@ dev.off()
 
 ### Figure for Packard Proposal; only sable and dover
 ### By species
-spp_packard <- c("lingcod", "sablefish")
-png("Figures/lingdover_port_bio.png", height=3, width=8, units="in", res=300)
-par(mfrow=c(1,3), mar=c(4,4,2,2))
+spp_packard <- c("Dover sole", "sablefish")
+pnames <- c("Bellingham", "Astoria", "Coos Bay", "Brookings", "Crescent City", "Eureka", "Fort Bragg", "Morro Bay")
+png("Figures/doversable_port_bio.png", height=3, width=8, units="in", res=300)
+par(mfrow=c(1,3), mar=c(4,4,2,2), oma=c(0,0,2,0))
 for(i in 1:length(spp_packard)){
   plot(StockBio/1000 ~ year,stock_port[spp_common==spp_packard[i]], col="white",
        main=spp_packard[i], ylab="Available Biomass (thousand mt)", las=1)
@@ -718,13 +719,15 @@ for(i in 1:length(spp_packard)){
            type="o", col=port_col[j], pch=port_pch[j])
   }
 }
-
+mtext("a)", at=c(0,1), outer=T, adj=0)
+mtext("b)", at=c(0.35,1), outer=T, adj=0)
+mtext("c)", at=c(0.65,1), outer=T, adj=0)
 plot(states.wcoast)
 points(Lat  ~ Lon, ports_rad, pch=port_pch, col=port_col, cex=0.8)
 for(i in 1:length(ports_vec)){
   polygon(circle.port[[i]], col=NA, border=port_col[i], lwd=1)
 }
-legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n", cex=1.5)
+legend("topleft", inset=c(-0.3,0), legend=pnames, pch=port_pch, col=port_col, bty="n", cex=1.25, xpd=T)
 dev.off()
 
 
