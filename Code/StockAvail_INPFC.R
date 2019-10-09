@@ -15,6 +15,7 @@ library(rasterVis)
 library(latticeExtra)
 library(tidyverse)
 library(geosphere)
+library(forecast)
 
 
 
@@ -395,6 +396,8 @@ stock_cog <- dtspling.dist[,list(spawning=mean(Value),
 stock_cog[,"log_assessBio":=log(spawning)]
 stock_cog[,"spawn.thou":=spawning/1000]
 
+
+
 ## Just sable and dover
 png("Figures/COG_sableDover_Packard.png", height=5, width=5, units="in", res=300)
 par(mar=c(4,4,2,2))
@@ -467,6 +470,84 @@ for(i in 1:length(dtspling.spp)){
   
 }
 dev.off()
+
+# =====================================
+# = Correlations in stock bio and cog 
+# =====================================
+### Are stocks further N or S depending on stock size (basin hypothesis?)
+mod_bio_cog_sable <- lm(cog ~ log_assessBio,stock_cog[spp_common=="sablefish"])
+mod_bio_cog_dover <- lm(cog ~ log_assessBio,stock_cog[spp_common=="Dover sole"])
+mod_bio_cog_petrale <- lm(cog ~ log_assessBio,stock_cog[spp_common=="petrale sole"])
+mod_bio_cog_thorny <- lm(cog ~ log_assessBio,stock_cog[spp_common=="shortspine thornyhead"])
+mod_bio_cog_ling <- lm(cog ~ log_assessBio,stock_cog[spp_common=="lingcod"])
+
+
+
+# =====================================
+# = Anomalies in COG
+# =====================================
+# Maybe use Twitter's AnomalyDetection package?
+# devtools::install_github("twitter/AnomalyDetection") 
+# library(AnomalyDetection)
+
+# OR Rob Hyndman’s forecast::tsoutliers() function available through forecast package
+
+stock_cog[,"mean_cog":=mean(cog), by=list(spp_common)]
+stock_cog[,"anom_cog":= cog - mean_cog]
+stock_cog[,"median_cog":=median(cog), by=list(spp_common)]
+
+
+boxplot(anom_cog_N ~ spp_common, stock_cog, notch=F)
+abline(h=0, col="red")
+
+# =====================================
+# = Relative variance in species distributions 
+# =====================================
+
+### Do variances differ between species
+# The four tests are:
+# 1. Cochran’s test: compares the maximum within-sample variance to the average withinsample variance. 
+# A P-value less than 0.05 indicates a significant difference amongst the
+# within-sample standard deviations at the 5% significance level. The test is appropriate
+# only if all group sizes are equal.
+# 2. Bartlett’s test: compares a weighted average of the within-sample variances to their
+# geometric mean. A P-value less than 0.05 indicates a significant difference amongst the
+# within-sample standard deviations at the 5% significance level. The test is appropriate
+# for both equal and unequal group sizes.
+# 3. Hartley’s test: computes the ratio of the largest sample variance to the smallest sample
+# variance. This statistic must be compared to a table of critical values, such as the one
+# contained in Neter et al. (1996). For 6 samples and 62 degrees of freedom for
+# experimental error, H would have to exceed approximately 2.1 to be statistically
+# significant at the 5% significance level. Note: this test is only
+# 4. Levene’s test: performs a one-way analysis of variance on the variables. 
+# The tabulated statistic is the F statistic from the ANOVA table.
+
+bartlett.test(cog ~ spp_common, stock_cog) #gives value for all species together, they are not all the same
+
+
+
+
+### According to this https://stackoverflow.com/questions/43646987/multiple-comparison-post-hoc-test-for-levenes-test
+### the Levene test is just a ANOVA on sample variance (or residuals) so can do on the residuals themselves
+### IF we convert them to absolute values
+### Technique corroborated by Boos and Brownie paper Boos, D. D., & Brownie, C. (2004). Comparing Variances and Other Measures of Dispersion. 
+### Statistical Science: A Review Journal of the Institute of Mathematical Statistics, 19(4), 571–578.
+### Mean absolute deviation from median (MDM) 
+### subtracting off the median had better Type I and Type II errors
+stock_cog[,"anom_cog_abs":= abs(cog- median_cog)]
+boxplot(anom_cog_abs ~ spp_common, stock_cog)
+
+levene_aov <- aov(anom_cog_abs ~ spp_common, stock_cog)
+TukeyHSD(levene_aov) # significant differences in variance between thorny--Dover and thorny--sable
+
+# =====================================
+# = Significant difference in species distributions 
+# =====================================
+# Syrjala, S. E. (1996). A Statistical Test for a Difference between the Spatial Distributions of Two Populations. 
+# Ecology, 77(1), 75–80.
+
+# Long, J., & Robertson, C. (2018). Comparing spatial patterns. 
+# Geography Compass, 12(2), e12356.
 
 # =====================================
 # = Correlation with PDO
