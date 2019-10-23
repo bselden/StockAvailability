@@ -198,8 +198,10 @@ dts.color <- dts.color[c(1:3, 7,9)]
 #dts.pch <- c(0,15,1,16,2,17)
 dts.pch <- c(19,3,15,7,17) #to match ggplot in fig 4
 
-inpfc.col <- brewer.pal(n=6, "YlGnBu")[2:6]
-inpfc.pch <- c(15,1,16,2,17)
+inpfc.col <- brewer.pal(n=6, "RdGy")[c(1:2, 4:6)]
+inpfc.pch <- c(15,1,21,2,17)
+inpfc.bg <- c(NA, NA, inpfc.col[3], NA,NA)
+inpfc.col <- c(inpfc.col[1:2], "black", inpfc.col[4:5])
 
 
 
@@ -277,15 +279,15 @@ inpfc_labs <- c("Conception", "Monterey", "Eureka", "Columbia", "Vancouver")
 
 inpfc_lines <- data.frame(lat=c(36,40.5,43,47.5),
                           lat_end=c(36,40.5,43,47.5),
-                          lon=rep(-127,4),
+                          lon=rep(-128,4),
                           lon_end=rep(-121,4))
 
 inpfc_text <- data.table(lat=c(35, 38, 42, 45, 48),
-                         lon=rep(-126.5, 5),
+                         lon=rep(-127.5, 5),
                          inpfc=inpfc_code)
 
 inpfc_ll_lines <- data.table(lat=c(36,40.5,43,47.5,36,40.5,43,47.5),
-                              lon=c(rep(-127,4), rep(-121,4)),
+                              lon=c(rep(-128,4), rep(-121,4)),
                               type=c(rep("start",4), rep("end", 4)))
                               
 
@@ -371,7 +373,7 @@ for(j in 1:length(dtspling.spp)){
        main=dtspling.spp[j], ylab="Mean Biomass (mt)", las=1)
   for(i in 1:length(inpfc_code)){
     points(mean.StockBio ~ year, inpfc.bio[spp_common==dtspling.spp[j] & inpfc==inpfc_code[i]],
-           type="o", col=inpfc.col[i], pch=inpfc.pch[i])
+           type="o", col=inpfc.col[i], bg=inpfc.bg[i], pch=inpfc.pch[i])
   }
 }
 
@@ -381,7 +383,7 @@ segments(x0=rep(-130, 5), x1=rep(-120, 5), y0=c(47.5,43,40.5,36))
 plot(states.wcoast, add=T, col="gray")
 text(x=rep(-126.5,5), y=c(48.5,45,42,38,35), rev(inpfc_code))
 legend("topright", legend=rev(inpfc_code), 
-       col=rev(inpfc.col), pch=rev(inpfc.pch), cex=1.5,
+       col=rev(inpfc.col), pch=rev(inpfc.pch), pt.bg=rev(inpfc.bg), cex=1.5,
        box.col="white")
 dev.off()
 
@@ -671,10 +673,16 @@ compare.stockBio.map(dtspling.dist,stock_cog, "sablefish", c(1980, 1992, 2008))
 ports_loc <- as.data.table(read.csv("Data/ports.lim.loc.csv"))
 ports_loc[,"X":=Lon]
 ports_loc[,"Y":=Lat]
+ports_loc[,"print_X":=ifelse(Pcid == c("BLL", "AST"), X+1, X+2)]
+ports_loc[,"print_Y":=ifelse(Pcid=="BRK", Y+0.25, 
+                             ifelse(Pcid%in%c("CRS"), Y-0.25,
+                                    ifelse(Pcid=="AST", Y-0.85, Y)))]
 attr(ports_loc, "projection") <- "LL"
 ports_utm <- convUL(ports_loc)
 
 ports_vec <- ports_loc$Pcid
+
+
 
 ### Import logbook output
 logbook_quant_yr <- readRDS("Data/logbook_quantile_dist_yr.rds")
@@ -688,8 +696,17 @@ logbook_quant_yr[,"port":=factor(RPCID, ports_vec)]
 
 
 library(RColorBrewer)
-port_col <- brewer.pal(n=9, "PRGn")[c(1:4,6:9)]
-port_pch <- c(7, 10, 16, 17, 15, 18, 19, 5)
+#port_col <- brewer.pal(n=9, "PRGn")[c(1:4,6:9)]
+prg.pal <- brewer.pal(n=5, "PRGn")
+port_col <- rep(prg.pal[c(1:2,4:5)], each=2)
+#rdgy.pal <- brewer.pal(n=5, "RdGy")
+#port_col <- rep(rdgy.pal[c(1:2,4:5)], each=2)
+#port_pch <- c(7, 10, 16, 17, 15, 18, 19, 5)
+#port_pch <- c(7, 15, 16, 1, 6, 17, 9, 18, 10)
+port_pch <- c(7, 15, 1, 16, 17, 6, 9, 18, 10)
+
+#port_lty <- rep(c(1,2), 4)
+
 
 
 
@@ -861,15 +878,16 @@ plot(states.wcoast, col=NA)
 segments(x0=inpfc_lines$lon, y0=inpfc_lines$lat,
          x1=inpfc_lines$lon_end, y1=inpfc_lines$lat_end)
 plot(states.wcoast, add=T)
-contour(depth, zlim=c(-500,-500), nlevels=1, add=T, drawlabels=F)
+contour(depth, zlim=c(-500,-500), nlevels=1, add=T, drawlabels=F, col="darkgray")
 #contour(depth, zlim=c(-1500,-1500), nlevels=1, add=T, drawlabels=F, col="gray")
 text(x=inpfc_text$lon, y=inpfc_text$lat, labels=inpfc_text$inpfc)
 
 #plot(rca1516_utm,  col="orange", add=T, border=NULL)
-points(Lat ~ Lon, subset(knot_locs_depth[Area_km2>0]), cex=0.3, col="black", pch=16) #subset to sites included in domain
-points(Lat  ~ Lon, ports_rad, pch=port_pch, col=port_col, cex=0.8)
+points(Lat ~ Lon, subset(knot_locs_depth[Area_km2>0]), cex=0.3, col="darkgray", pch=16) #subset to sites included in domain
+points(Lat  ~ Lon, ports_rad, pch=20, col="black", cex=1)
+text(x=ports_loc$print_X, y=ports_loc$print_Y, labels=ports_loc$Pcid)
 for(i in 1:length(ports_vec)){
-  polygon(circle.port[[i]], col=NA, border=port_col[i], lwd=2)
+  polygon(circle.port[[i]], col=NA, border="black", lwd=2)
 }
 # symbols(x=ports_rad$Lon, y=ports_rad$Lat, circles=ports_rad$q75.degree, inches=F, 
 #         add=T, fg=port_col, lwd=2)
@@ -881,7 +899,7 @@ mtext(side=1, "Longitude", line=3)
 # plot(states.wcoast, col=NA, border=NA)
 # axis(side=2, at=c(32,36,40,44,48), line=-2, las=1)
 #mtext(side=2, line=0, "Latitude")
-legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
+#legend("topright", legend=ports_vec, pch=port_pch, col=port_col, bty="n")
 dev.off()
 
 png("Figures/inpfc_wport.png", height=5, width=4, units="in", res=300)
